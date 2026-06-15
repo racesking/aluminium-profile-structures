@@ -1,0 +1,260 @@
+/* ——— Selection wizard ——— */
+
+.wizard {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 1px 1px, #d8d8d8 1px, transparent 0) 0 0 / 26px 26px,
+    linear-gradient(180deg, #f4f4f4 0%, #ececec 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wizard-inner {
+  width: min(980px, 92vw);
+  margin: auto;
+  padding: clamp(14px, 3vh, 34px) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wizard-brand {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: clamp(14px, 2.4vh, 22px);
+}
+
+.wizard-brand::before,
+.wizard-brand::after {
+  content: '';
+  display: block;
+  width: 34px;
+  height: 1px;
+  background: var(--border);
+}
+
+.wizard h1 {
+  font-family: var(--sans);
+  font-size: clamp(24px, 3.2vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.wizard-sub {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0 0 clamp(18px, 3vh, 26px);
+  text-align: center;
+}
+
+.wizard-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  width: 100%;
+}
+
+.wizard-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  min-width: 0;
+  /* Override the global button { white-space: nowrap } so the description and
+     feature lines wrap inside the card instead of overflowing. */
+  white-space: normal;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 22px 18px;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.wizard-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+}
+
+.wizard-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.wizard-badge {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface-elevated);
+}
+
+.wizard-card.express .wizard-badge {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.wizard-art {
+  height: clamp(90px, 12vh, 116px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+
+.wizard-art svg {
+  max-height: 100%;
+  width: auto;
+}
+
+.wizard-art svg {
+  display: block;
+}
+
+.wizard-card h2 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+
+.wizard-card-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+
+.wizard-features {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.wizard-features li {
+  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text);
+}
+
+.wizard-features li::before {
+  content: '—';
+  font-family: var(--mono);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.wizard-cta {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  color: var(--text);
+  transition: background var(--transition), color var(--transition);
+}
+
+.wizard-card.express .wizard-cta {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wizard-card:hover .wizard-cta {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wizard-cta .arrow {
+  transition: transform 180ms ease;
+}
+
+.wizard-card:hover .wizard-cta .arrow {
+  transform: translateX(4px);
+}
+
+.wizard-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: clamp(16px, 2.6vh, 24px);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wizard-open-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 7px 14px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wizard-open-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.wizard-foot {
+  margin-top: clamp(12px, 2vh, 18px);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .wizard-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .wizard-inner {
+    padding: 32px 0 40px;
+  }
+}

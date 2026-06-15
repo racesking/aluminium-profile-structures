@@ -1,0 +1,437 @@
+/* ——— Express Builder ——— */
+
+.express-app {
+  --panel-w: clamp(220px, 22vw, 290px);
+  --panel-w-right: clamp(280px, 27vw, 380px);
+}
+
+/* Template picker */
+
+.tpl-category {
+  margin-bottom: 10px;
+}
+
+.tpl-category:last-child {
+  margin-bottom: 0;
+}
+
+.tpl-category-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tpl-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  transition: border-color var(--transition), background var(--transition),
+    box-shadow var(--transition);
+}
+
+.tpl-option:hover {
+  background: var(--hover);
+}
+
+.tpl-option.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--surface);
+  /* Override the global button.active white text — it was invisible on the
+     light card background. */
+  color: var(--text);
+}
+
+.tpl-option.active strong {
+  color: var(--text);
+}
+
+.tpl-option.active span {
+  color: var(--text-muted);
+}
+
+.tpl-option strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tpl-option span {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* More-templates trigger + hover popover */
+
+.more-templates {
+  position: relative;
+}
+
+.more-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.more-trigger:hover,
+.more-trigger.open {
+  background: var(--hover);
+  border-color: #aaa;
+}
+
+.more-trigger.active {
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.more-trigger-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-count {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.more-popover {
+  position: fixed;
+  z-index: 250;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  padding: 8px;
+}
+
+.more-group {
+  margin-bottom: 6px;
+}
+
+.more-group:last-child {
+  margin-bottom: 0;
+}
+
+.more-popover .tpl-category-label {
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+
+/* Compact cards inside the popover so more fit before scrolling. */
+.more-popover .tpl-option {
+  gap: 1px;
+  padding: 6px 9px;
+  margin-bottom: 5px;
+  border-radius: 4px;
+}
+
+.more-popover .tpl-option:last-child {
+  margin-bottom: 0;
+}
+
+.more-popover .tpl-option strong {
+  font-size: 12px;
+}
+
+.more-popover .tpl-option span {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+/* Parameter sliders */
+
+.param {
+  margin-bottom: 16px;
+}
+
+.param:last-child {
+  margin-bottom: 0;
+}
+
+.param-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.param-head label {
+  margin: 0;
+}
+
+.param-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.param-value input {
+  width: 68px;
+  padding: 4px 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.param-value .unit {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.param input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.param-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.param-toggle label {
+  margin: 0;
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  flex-shrink: 0;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 150ms ease, background var(--transition);
+}
+
+.switch.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch.on::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* Through-member toggle */
+
+.through-toggle {
+  margin-top: 12px;
+  transition: opacity var(--transition);
+}
+
+.through-toggle > label {
+  margin-bottom: 6px;
+}
+
+/* Stock mode segmented toggle */
+
+.seg-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.seg-toggle button {
+  border: none;
+  border-radius: 0;
+  padding: 7px 4px;
+  font-size: 11px;
+  background: var(--surface);
+}
+
+.seg-toggle button + button {
+  border-left: 1px solid var(--border);
+}
+
+.seg-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* BOM */
+
+.bom-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bom-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.bom-table td {
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+}
+
+.bom-table tr:last-child td {
+  border-bottom: none;
+}
+
+.bom-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.role-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 7px;
+  vertical-align: -1px;
+}
+
+.buy-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.buy-line strong {
+  font-size: 15px;
+}
+
+/* Cut diagrams */
+
+.cut-group {
+  margin-bottom: 12px;
+}
+
+.cut-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.cut-group-head strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cut-strip {
+  display: flex;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-elevated);
+}
+
+.cut-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2px;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.cut-seg:last-child {
+  border-right: none;
+}
+
+.cut-seg.waste {
+  color: var(--text-muted);
+  background: repeating-linear-gradient(
+    -45deg,
+    #e8e8e8 0,
+    #e8e8e8 4px,
+    #f6f6f6 4px,
+    #f6f6f6 8px
+  );
+  border-right: none;
+}
+
+.express-badge-dims {
+  font-family: var(--mono);
+}
+
+@media (max-width: 720px) {
+  .express-app {
+    --panel-w: 0px;
+    --panel-w-right: 0px;
+  }
+}
