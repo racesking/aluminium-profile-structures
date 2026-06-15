@@ -1,9 +1,13 @@
 import type { MultiCuttingResult } from './cuttingStock';
+import { solveCuttingStockByProfile } from './cuttingStock';
 import type { CutMember } from './joints';
 import type { ProfileDef } from './profiles';
 import type { LengthUnit } from './units';
 import { toDisplay, formatLength } from './units';
 import { structureDrawingSvg } from './drawing';
+import { assignRoleColors } from './templates';
+import { distance, roundLength } from './geometry';
+import type { Edge, Node, Profile, StockBar, Vec3 } from './types';
 
 export type BomExportInput = {
   multi: MultiCuttingResult;
@@ -183,4 +187,75 @@ export function bomToPrintHtml(input: BomExportInput): string {
     <h2>Cut plan</h2>
     ${cutSections}
   </body></html>`;
+}
+
+/** A, B, … Z, AA, AB … part labels by index. */
+function partLabel(i: number): string {
+  let n = i + 1;
+  let s = '';
+  while (n > 0) {
+    s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return `Part ${s}`;
+}
+
+/**
+ * Build export input from the Advanced builder's raw nodes/edges (single
+ * profile). Members are grouped by length into lettered parts so the drawing
+ * gets one balloon/colour per distinct length.
+ */
+export function structureToExportInput(args: {
+  nodes: Node[];
+  edges: Edge[];
+  profile: Profile;
+  stock: StockBar[];
+  kerf: number;
+  units: LengthUnit;
+  projectName: string;
+  dateStr: string;
+}): BomExportInput {
+  const { nodes, edges, profile, stock, kerf, units, projectName, dateStr } = args;
+  const posOf = (id: string) => nodes.find((n) => n.id === id)?.position;
+
+  const raw = edges
+    .map((e) => {
+      const from = posOf(e.fromId);
+      const to = posOf(e.toId);
+      if (!from || !to) return null;
+      const length = roundLength(distance(from, to));
+      return length > 0 ? { id: e.id, from, to, length } : null;
+    })
+    .filter((x): x is { id: string; from: Vec3; to: Vec3; length: number } => x !== null);
+
+  const lengths = [...new Set(raw.map((m) => m.length))].sort((a, b) => b - a);
+  const labelOf = new Map(lengths.map((len, i) => [len, partLabel(i)]));
+
+  const cutMembers: CutMember[] = raw.map((m) => ({
+    id: m.id,
+    role: labelOf.get(m.length)!,
+    from: m.from,
+    to: m.to,
+    length: m.length,
+    nominal: m.length,
+  }));
+
+  const roleColors = assignRoleColors(cutMembers);
+  const sectionMm = profile.sectionSizeMm ?? 40;
+  const prof: ProfileDef = { id: 'advanced', name: profile.name || 'Profile', sectionMm };
+  const pieces = cutMembers.map((m) => ({ edgeId: m.id, length: m.length, label: m.role }));
+  const multi = solveCuttingStockByProfile(
+    [{ profileId: prof.id, profileName: prof.name, sectionMm, pieces, stock }],
+    kerf,
+  );
+
+  return {
+    multi,
+    cutMembers,
+    profileOf: () => prof,
+    units,
+    projectName,
+    dateStr,
+    roleColors,
+  };
 }

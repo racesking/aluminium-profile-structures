@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { openProjectAndRoute, saveStructureProject } from '../store/projectIO';
+import { bomToPrintHtml, structureToExportInput } from '../core/bomExport';
 import { WORK_PLANE_LABELS } from '../core/workPlane';
 import type { WorkPlane } from '../core/types';
 import { BoxFrameDialog } from './BoxFrameDialog';
@@ -25,8 +27,10 @@ export function Toolbar() {
   const redo = useStructureStore((s) => s.redo);
   const loadBoxFrame = useStructureStore((s) => s.loadBoxFrame);
   const exportCutList = useStructureStore((s) => s.exportCutList);
+  const edgeCount = useStructureStore((s) => s.edges.length);
 
   const setView = useAppStore((s) => s.setView);
+  const units = useSettingsStore((s) => s.units);
 
   const [boxOpen, setBoxOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,6 +63,26 @@ export function Toolbar() {
     a.download = 'cut-list.txt';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDrawing = () => {
+    const { nodes, edges, profile, stock, kerf } = useStructureStore.getState();
+    const input = structureToExportInput({
+      nodes,
+      edges,
+      profile,
+      stock,
+      kerf,
+      units,
+      projectName: 'Structure',
+      dateStr: new Date().toLocaleDateString(),
+    });
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(bomToPrintHtml(input));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 200);
   };
 
   return (
@@ -165,6 +189,14 @@ export function Toolbar() {
               title="Export the cut list as text"
             >
               Export
+            </button>
+            <button
+              type="button"
+              onClick={handleDrawing}
+              disabled={edgeCount === 0}
+              title="Isometric technical drawing + parts list (Save as PDF)"
+            >
+              Drawing
             </button>
             <button type="button" onClick={() => setView('settings')} title="Settings">
               ⚙

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { bomToCsv } from './bomExport';
+import { bomToCsv, structureToExportInput } from './bomExport';
 import { solveCuttingStockByProfile } from './cuttingStock';
 import type { CutMember } from './joints';
 import type { ProfileDef } from './profiles';
+import type { Edge, Node, Profile, StockBar } from './types';
 
 const profile: ProfileDef = { id: 'a', name: '40x40', sectionMm: 40 };
 
@@ -52,5 +53,48 @@ describe('bomToCsv', () => {
     const csv = bomToCsv({ ...base, units: 'm' });
     expect(csv.split('\n')[0]).toBe('Profile,Section (mm),Member,Length (m),Qty');
     expect(csv).toContain('40x40,40,Post,0.8,4');
+  });
+});
+
+describe('structureToExportInput (Advanced builder)', () => {
+  const nodes: Node[] = [
+    { id: 'a', position: [0, 0, 0] },
+    { id: 'b', position: [1000, 0, 0] },
+    { id: 'c', position: [1000, 0, 500] },
+    { id: 'd', position: [0, 0, 500] },
+  ];
+  const edges: Edge[] = [
+    { id: 'e1', fromId: 'a', toId: 'b' }, // 1000
+    { id: 'e2', fromId: 'c', toId: 'd' }, // 1000
+    { id: 'e3', fromId: 'b', toId: 'c' }, // 500
+    { id: 'e4', fromId: 'd', toId: 'a' }, // 500
+  ];
+  const profile: Profile = { name: '40×40', sectionSizeMm: 40 };
+  const stock: StockBar[] = [{ id: 's', length: 6000, quantity: 4 }];
+
+  const input = structureToExportInput({
+    nodes,
+    edges,
+    profile,
+    stock,
+    kerf: 0,
+    units: 'mm',
+    projectName: 'T',
+    dateStr: '2026-01-01',
+  });
+
+  it('groups members by length into lettered parts', () => {
+    expect(input.cutMembers).toHaveLength(4);
+    const roles = [...new Set(input.cutMembers.map((m) => m.role))].sort();
+    expect(roles).toEqual(['Part A', 'Part B']);
+  });
+
+  it('assigns the longest length to Part A', () => {
+    expect(input.cutMembers.find((m) => m.role === 'Part A')?.length).toBe(1000);
+  });
+
+  it('builds a single-profile cutting result', () => {
+    expect(input.multi.byProfile).toHaveLength(1);
+    expect(input.multi.byProfile[0].profileName).toBe('40×40');
   });
 });
