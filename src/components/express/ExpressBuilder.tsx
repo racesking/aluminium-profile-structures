@@ -19,6 +19,9 @@ import {
   type ProfileCutGroup,
 } from '../../core/cuttingStock';
 import { profileForRole } from '../../core/profiles';
+import { bomToCsv, bomToPrintHtml, type BomExportInput } from '../../core/bomExport';
+import { formatLengthValue } from '../../core/units';
+import { useSettingsStore } from '../../store/settingsStore';
 import type { CutPiece } from '../../core/types';
 import { ParamSlider } from './ParamSlider';
 import { ExpressScene } from './ExpressScene';
@@ -43,6 +46,7 @@ export function ExpressBuilder() {
   const roleProfileByTemplate = useExpressStore((s) => s.roleProfileByTemplate);
   const stockMode = useExpressStore((s) => s.stockMode);
   const stockByProfile = useExpressStore((s) => s.stockByProfile);
+  const units = useSettingsStore((s) => s.units);
 
   const setTemplate = useExpressStore((s) => s.setTemplate);
   const setParam = useExpressStore((s) => s.setParam);
@@ -180,11 +184,39 @@ export function ExpressBuilder() {
     }
   };
 
+  const exportInput = (): BomExportInput => ({
+    multi,
+    cutMembers,
+    profileOf,
+    units,
+    projectName: template.name,
+    dateStr: new Date().toLocaleDateString(),
+  });
+
+  const handleExportCsv = () => {
+    const blob = new Blob([bomToCsv(exportInput())], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${template.id}-bom.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(bomToPrintHtml(exportInput()));
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 200);
+  };
+
   const DIM_KEYS = ['width', 'depth', 'height', 'length'];
   const dims = `${template.params
     .filter((d) => d.kind === 'length' && DIM_KEYS.includes(d.key))
-    .map((d) => params[d.key])
-    .join(' × ')} mm`;
+    .map((d) => formatLengthValue(params[d.key], units))
+    .join(' × ')} ${units}`;
 
   return (
     <div
@@ -219,6 +251,15 @@ export function ExpressBuilder() {
               title="Open a project file from your computer"
             >
               Open
+            </button>
+            <button type="button" onClick={handleExportCsv} title="Export the BOM as CSV">
+              CSV
+            </button>
+            <button type="button" onClick={handlePrint} title="Printable cut sheet (Save as PDF)">
+              Print
+            </button>
+            <button type="button" onClick={() => setView('settings')} title="Settings">
+              ⚙
             </button>
           </div>
           <span className="toolbar-sep" />

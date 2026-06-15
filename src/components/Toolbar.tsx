@@ -166,6 +166,9 @@ export function Toolbar() {
             >
               Export
             </button>
+            <button type="button" onClick={() => setView('settings')} title="Settings">
+              ⚙
+            </button>
           </div>
         </div>
 

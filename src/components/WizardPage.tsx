@@ -101,6 +101,14 @@ export function WizardPage() {
 
   return (
     <div className="wizard">
+      <button
+        type="button"
+        className="wizard-settings"
+        onClick={() => setView('settings')}
+        title="Settings"
+      >
+        ⚙ Settings
+      </button>
       <div className="wizard-inner">
         <div className="wizard-brand">Profile Builder · Aluminium Structures</div>
         <h1>What are you building today?</h1>

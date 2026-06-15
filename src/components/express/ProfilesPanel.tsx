@@ -1,4 +1,6 @@
 import { useExpressStore } from '../../store/expressStore';
+import { useSettingsStore } from '../../store/settingsStore';
+import { toDisplay, fromDisplay, unitInputStep } from '../../core/units';
 import type { ProfileDef } from '../../core/profiles';
 
 type Props = {
@@ -19,6 +21,7 @@ function ProfileStockBlock({
   const addInventoryRow = useExpressStore((s) => s.addInventoryRow);
   const updateInventory = useExpressStore((s) => s.updateInventory);
   const removeInventory = useExpressStore((s) => s.removeInventory);
+  const units = useSettingsStore((s) => s.units);
 
   if (!stock) return null;
 
@@ -32,14 +35,15 @@ function ProfileStockBlock({
 
       {stockMode === 'buy' ? (
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Bar length (mm)</label>
+          <label>Bar length ({units})</label>
           <input
             type="number"
-            min={100}
-            max={20000}
-            step={100}
-            value={stock.buyLength}
-            onChange={(e) => setProfileBuyLength(profile.id, parseFloat(e.target.value) || 6000)}
+            min={0}
+            step={unitInputStep(units)}
+            value={toDisplay(stock.buyLength, units)}
+            onChange={(e) =>
+              setProfileBuyLength(profile.id, fromDisplay(parseFloat(e.target.value) || 0, units))
+            }
           />
         </div>
       ) : (
@@ -48,12 +52,18 @@ function ProfileStockBlock({
             <div key={bar.id} className="stock-row">
               <input
                 type="number"
-                min={1}
-                value={bar.length}
+                min={0}
+                step={unitInputStep(units)}
+                value={toDisplay(bar.length, units)}
                 onChange={(e) =>
-                  updateInventory(profile.id, bar.id, parseFloat(e.target.value) || 1, bar.quantity)
+                  updateInventory(
+                    profile.id,
+                    bar.id,
+                    fromDisplay(parseFloat(e.target.value) || 0, units),
+                    bar.quantity,
+                  )
                 }
-                title="Length mm"
+                title={`Length (${units})`}
               />
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>×</span>
               <input

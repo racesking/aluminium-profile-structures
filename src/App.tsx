@@ -1,5 +1,6 @@
 import { lazy, Suspense, type CSSProperties } from 'react';
 import { WizardPage } from './components/WizardPage';
+import { SettingsPage } from './components/SettingsPage';
 import { useAppStore } from './store/appStore';
 
 // The 3D builders pull in three.js/react-three-fiber (~1 MB). Lazy-loading them
@@ -37,6 +38,7 @@ export default function App() {
   const view = useAppStore((s) => s.view);
 
   if (view === 'wizard') return <WizardPage />;
+  if (view === 'settings') return <SettingsPage />;
 
   return (
     <Suspense fallback={<LoadingScreen />}>

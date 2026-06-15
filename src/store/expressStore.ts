@@ -10,6 +10,7 @@ import {
   type ProfileStock,
 } from '../core/profiles';
 import type { ExpressPayload } from '../core/projectFile';
+import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY = 'express-builder-state';
 
@@ -192,10 +193,14 @@ export const useExpressStore = create<ExpressState>((set, get) => ({
   addProfile: () =>
     set((s) => {
       const n = s.profiles.length + 1;
-      const profile = makeProfile(`Profile ${n}`, 30);
+      const { defaultSectionMm, defaultBarLength } = useSettingsStore.getState();
+      const profile = makeProfile(`Profile ${n}`, defaultSectionMm);
+      const stock = defaultProfileStock();
+      stock.buyLength = defaultBarLength;
+      stock.inventory = stock.inventory.map((b) => ({ ...b, length: defaultBarLength }));
       return {
         profiles: [...s.profiles, profile],
-        stockByProfile: { ...s.stockByProfile, [profile.id]: defaultProfileStock() },
+        stockByProfile: { ...s.stockByProfile, [profile.id]: stock },
       };
     }),
   removeProfile: (id) =>

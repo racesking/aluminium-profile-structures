@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 
-export type AppView = 'wizard' | 'advanced' | 'express';
+export type AppView = 'wizard' | 'advanced' | 'express' | 'settings';
 
 function viewFromHash(): AppView {
   const h = window.location.hash.replace('#', '');
-  if (h === 'advanced' || h === 'express') return h;
+  if (h === 'advanced' || h === 'express' || h === 'settings') return h;
   return 'wizard';
 }
 

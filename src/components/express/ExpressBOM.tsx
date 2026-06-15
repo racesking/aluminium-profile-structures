@@ -6,6 +6,9 @@ import type {
 } from '../../core/cuttingStock';
 import type { CutMember } from '../../core/joints';
 import type { ProfileDef } from '../../core/profiles';
+import { useSettingsStore } from '../../store/settingsStore';
+import { formatLength, formatLengthValue } from '../../core/units';
+import type { LengthUnit } from '../../core/units';
 
 type Props = {
   multi: MultiCuttingResult;
@@ -19,9 +22,11 @@ type Props = {
 function CutStrip({
   bar,
   roleColors,
+  units,
 }: {
   bar: BarAssignment;
   roleColors: Map<string, string>;
+  units: LengthUnit;
 }) {
   return (
     <div className="cut-strip">
@@ -32,9 +37,9 @@ function CutStrip({
             key={i}
             className="cut-seg"
             style={{ width: `${pct}%`, background: roleColors.get(c.label ?? '') ?? '#888888' }}
-            title={`${c.label ?? 'Cut'} — ${c.length} mm`}
+            title={`${c.label ?? 'Cut'} — ${formatLength(c.length, units)}`}
           >
-            {pct > 8 ? c.length : ''}
+            {pct > 8 ? formatLengthValue(c.length, units) : ''}
           </div>
         );
       })}
@@ -42,9 +47,9 @@ function CutStrip({
         <div
           className="cut-seg waste"
           style={{ width: `${(bar.waste / bar.stockLength) * 100}%` }}
-          title={`Waste — ${bar.waste} mm`}
+          title={`Waste — ${formatLength(bar.waste, units)}`}
         >
-          {(bar.waste / bar.stockLength) * 100 > 10 ? bar.waste : ''}
+          {(bar.waste / bar.stockLength) * 100 > 10 ? formatLengthValue(bar.waste, units) : ''}
         </div>
       )}
     </div>
@@ -58,6 +63,7 @@ function ProfileBOMSection({
   stockMode,
   buyLength,
   showHeader,
+  units,
 }: {
   group: ProfileCutResult;
   members: CutMember[];
@@ -65,6 +71,7 @@ function ProfileBOMSection({
   stockMode: 'buy' | 'inventory';
   buyLength: number;
   showHeader: boolean;
+  units: LengthUnit;
 }) {
   const { result } = group;
 
@@ -105,7 +112,7 @@ function ProfileBOMSection({
         <div className="buy-line">
           <span>Bars to buy</span>
           <strong>
-            {barsUsed} × {buyLength} mm
+            {barsUsed} × {formatLength(buyLength, units)}
           </strong>
         </div>
       )}
@@ -118,7 +125,7 @@ function ProfileBOMSection({
                 <span className="role-dot" style={{ background: roleColors.get(g.role) ?? '#888' }} />
                 {g.role}
               </td>
-              <td className="num">{g.length} mm</td>
+              <td className="num">{formatLength(g.length, units)}</td>
               <td className="num">× {g.qty}</td>
             </tr>
           ))}
@@ -130,30 +137,30 @@ function ProfileBOMSection({
           <div key={i} className="cut-group">
             <div className="cut-group-head">
               <strong>
-                {qty > 1 ? `${qty} × ` : ''}Bar {bar.stockLength} mm
+                {qty > 1 ? `${qty} × ` : ''}Bar {formatLength(bar.stockLength, units)}
               </strong>
-              <span>waste {bar.waste} mm</span>
+              <span>waste {formatLength(bar.waste, units)}</span>
             </div>
-            <CutStrip bar={bar} roleColors={roleColors} />
+            <CutStrip bar={bar} roleColors={roleColors} units={units} />
           </div>
         ))}
 
         {result.unplaced.length > 0 ? (
           <div className="shortage">
             {result.unplaced.length} piece{result.unplaced.length > 1 ? 's' : ''} won&apos;t fit (
-            {result.shortageMm} mm missing).
+            {formatLength(result.shortageMm, units)} missing).
             {stockMode === 'buy' ? (
               <>
                 <br />
-                Longest piece is {Math.max(...result.unplaced.map((p) => p.length))} mm — increase the
-                bar length.
+                Longest piece is {formatLength(Math.max(...result.unplaced.map((p) => p.length)), units)} —
+                increase the bar length.
               </>
             ) : (
               result.suggestedBars && (
                 <>
                   <br />
-                  Add {result.suggestedBars.quantity} × {result.suggestedBars.length} mm to this
-                  profile&apos;s stock.
+                  Add {result.suggestedBars.quantity} × {formatLength(result.suggestedBars.length, units)} to
+                  this profile&apos;s stock.
                 </>
               )
             )}
@@ -174,6 +181,7 @@ export function ExpressBOM({
   stockMode,
   buyLengthOf,
 }: Props) {
+  const units = useSettingsStore((s) => s.units);
   const multiProfile = multi.byProfile.length > 1;
 
   return (
@@ -185,7 +193,7 @@ export function ExpressBOM({
         </div>
         <div className="stat-card">
           <strong>Total cut</strong>
-          <span>{(multi.totalCutLength / 1000).toFixed(2)} m</span>
+          <span>{formatLength(multi.totalCutLength, units)}</span>
         </div>
         <div className="stat-card">
           <strong>Bars used</strong>
@@ -210,6 +218,7 @@ export function ExpressBOM({
             stockMode={stockMode}
             buyLength={buyLengthOf(group.profileId)}
             showHeader={multiProfile}
+            units={units}
           />
         ))}
       </div>
