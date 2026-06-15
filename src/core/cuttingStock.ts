@@ -227,3 +227,76 @@ export function formatCutList(result: CuttingResult): string {
   }
   return lines.join('\n');
 }
+
+/** One profile's cut pieces and the stock available for that profile. */
+export type ProfileCutGroup = {
+  profileId: string;
+  profileName: string;
+  sectionMm: number;
+  pieces: CutPiece[];
+  stock: StockBar[];
+};
+
+export type ProfileCutResult = {
+  profileId: string;
+  profileName: string;
+  sectionMm: number;
+  result: CuttingResult;
+};
+
+export type MultiCuttingResult = {
+  byProfile: ProfileCutResult[];
+  totalBars: number;
+  totalCutLength: number;
+  totalUsed: number;
+  totalWaste: number;
+  wastePercent: number;
+  anyUnplaced: boolean;
+};
+
+/**
+ * Optimize each profile independently — pieces of one section can never be cut
+ * from another section's stock — then aggregate the totals. Profiles with no
+ * pieces are skipped.
+ */
+export function solveCuttingStockByProfile(
+  groups: ProfileCutGroup[],
+  kerf: number,
+): MultiCuttingResult {
+  const byProfile: ProfileCutResult[] = groups
+    .filter((g) => g.pieces.length > 0)
+    .map((g) => ({
+      profileId: g.profileId,
+      profileName: g.profileName,
+      sectionMm: g.sectionMm,
+      result: solveCuttingStock(g.pieces, g.stock, kerf),
+    }));
+
+  let totalBars = 0;
+  let totalUsed = 0;
+  let totalWaste = 0;
+  let usedStock = 0;
+  let anyUnplaced = false;
+  for (const p of byProfile) {
+    totalBars += p.result.bars.length;
+    totalUsed += p.result.totalUsed;
+    totalWaste += p.result.totalWaste;
+    usedStock += p.result.bars.reduce((s, b) => s + b.stockLength, 0);
+    if (p.result.unplaced.length > 0) anyUnplaced = true;
+  }
+
+  const totalCutLength = groups.reduce(
+    (s, g) => s + g.pieces.reduce((a, p) => a + p.length, 0),
+    0,
+  );
+
+  return {
+    byProfile,
+    totalBars,
+    totalCutLength: roundLength(totalCutLength),
+    totalUsed: roundLength(totalUsed),
+    totalWaste: roundLength(totalWaste),
+    wastePercent: usedStock > 0 ? roundLength((totalWaste / usedStock) * 100) : 0,
+    anyUnplaced,
+  };
+}

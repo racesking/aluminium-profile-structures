@@ -6,6 +6,8 @@ import type {
   Vec3,
   WorkPlane,
 } from './types';
+import type { ProfileDef, ProfileStock } from './profiles';
+import { z } from 'zod';
 
 /**
  * On-disk project format. Saved as a .json file on the user's computer via the
@@ -29,16 +31,26 @@ export type StructurePayload = {
 export type ExpressPayload = {
   templateId: string;
   paramsByTemplate: Record<string, Record<string, number>>;
-  stockMode: 'buy' | 'inventory';
-  buyLength: number;
-  inventory: StockBar[];
   kerf: number;
-  profileName: string;
-  sectionSizeMm: number;
   /** Joint type id; optional for projects saved before joints existed. */
   jointId?: string;
   /** Through-member continuity option index; optional for older projects. */
   throughIndex?: number;
+  /** Global stock mode. */
+  stockMode?: 'buy' | 'inventory';
+
+  /* ---- multi-profile (v2) ---- */
+  profiles?: ProfileDef[];
+  /** Per-template role → profile id assignment. */
+  roleProfileByTemplate?: Record<string, Record<string, string>>;
+  /** Per-profile stock (keyed by profile id). */
+  stockByProfile?: Record<string, ProfileStock>;
+
+  /* ---- legacy single-profile (v1), read for migration ---- */
+  profileName?: string;
+  sectionSizeMm?: number;
+  buyLength?: number;
+  inventory?: StockBar[];
 };
 
 export type ProjectFile = {
@@ -164,6 +176,85 @@ export async function openProjectFile(): Promise<ProjectFile | null> {
   return openViaInput();
 }
 
+/* ---- Runtime validation — defends against malformed or hostile files ---- */
+
+const Vec3Schema = z.tuple([z.number(), z.number(), z.number()]);
+const StockBarSchema = z.object({
+  id: z.string(),
+  length: z.number(),
+  quantity: z.number(),
+});
+const NodeSchema = z.object({ id: z.string(), position: Vec3Schema });
+const EdgeSchema = z.object({ id: z.string(), fromId: z.string(), toId: z.string() });
+const ConstraintSchema = z.object({
+  id: z.string(),
+  edgeAId: z.string(),
+  edgeBId: z.string(),
+  type: z.enum(['parallel', 'perpendicular']),
+});
+const ProfileSchema = z.object({
+  name: z.string(),
+  sectionLabel: z.string().optional(),
+  sectionSizeMm: z.number().optional(),
+});
+
+const StructurePayloadSchema = z
+  .object({
+    nodes: z.array(NodeSchema),
+    edges: z.array(EdgeSchema),
+    constraints: z.array(ConstraintSchema),
+    profile: ProfileSchema,
+    stock: z.array(StockBarSchema),
+    kerf: z.number(),
+    snap: z.number(),
+    gridCellSize: z.number(),
+    snapToGrid: z.boolean(),
+    workPlane: z.enum(['xz', 'xy', 'yz', 'free']),
+    duplicateOffset: Vec3Schema,
+  })
+  .passthrough();
+
+const ProfileDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  sectionMm: z.number(),
+});
+const ProfileStockSchema = z.object({
+  buyLength: z.number(),
+  inventory: z.array(StockBarSchema),
+});
+
+const ExpressPayloadSchema = z
+  .object({
+    templateId: z.string(),
+    paramsByTemplate: z.record(z.record(z.number())),
+    kerf: z.number(),
+    jointId: z.string().optional(),
+    throughIndex: z.number().optional(),
+    stockMode: z.enum(['buy', 'inventory']).optional(),
+    profiles: z.array(ProfileDefSchema).optional(),
+    roleProfileByTemplate: z.record(z.record(z.string())).optional(),
+    stockByProfile: z.record(ProfileStockSchema).optional(),
+    // legacy v1 fields
+    profileName: z.string().optional(),
+    sectionSizeMm: z.number().optional(),
+    buyLength: z.number().optional(),
+    inventory: z.array(StockBarSchema).optional(),
+  })
+  .passthrough();
+
+const ProjectFileSchema = z
+  .object({
+    app: z.literal('profile-builder'),
+    version: z.number(),
+    kind: z.enum(['structure', 'express']),
+    savedAt: z.string(),
+    name: z.string(),
+    structure: StructurePayloadSchema.optional(),
+    express: ExpressPayloadSchema.optional(),
+  })
+  .passthrough();
+
 export function parseProjectFile(text: string): ProjectFile {
   let data: unknown;
   try {
@@ -171,18 +262,30 @@ export function parseProjectFile(text: string): ProjectFile {
   } catch {
     throw new Error('This file is not valid JSON.');
   }
-  const obj = data as Partial<ProjectFile>;
-  if (!obj || obj.app !== 'profile-builder') {
+
+  // Friendly message for a file that isn't ours at all, before schema details.
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    (data as { app?: unknown }).app !== 'profile-builder'
+  ) {
     throw new Error('This file is not a Profile Builder project.');
   }
-  if (obj.kind === 'structure' && !obj.structure) {
+
+  const parsed = ProjectFileSchema.safeParse(data);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const where = first?.path.length ? ` (at ${first.path.join('.')})` : '';
+    throw new Error(`This project file is malformed or unsupported${where}.`);
+  }
+
+  // The schema guarantees the shape; the payload for the declared kind must exist.
+  const project = data as ProjectFile;
+  if (project.kind === 'structure' && !project.structure) {
     throw new Error('Project file is missing its structure data.');
   }
-  if (obj.kind === 'express' && !obj.express) {
+  if (project.kind === 'express' && !project.express) {
     throw new Error('Project file is missing its Express data.');
   }
-  if (obj.kind !== 'structure' && obj.kind !== 'express') {
-    throw new Error('Unknown project type.');
-  }
-  return obj as ProjectFile;
+  return project;
 }

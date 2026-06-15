@@ -91,10 +91,10 @@ function FitCamera({ members }: { members: ExpressMember[] }) {
 type Props = {
   members: ExpressMember[];
   roleColors: Map<string, string>;
-  sectionSizeMm: number;
+  sectionOf: (member: ExpressMember) => number;
 };
 
-export function ExpressScene({ members, roleColors, sectionSizeMm }: Props) {
+export function ExpressScene({ members, roleColors, sectionOf }: Props) {
   const { span } = boundsOf(members);
 
   return (
@@ -129,7 +129,7 @@ export function ExpressScene({ members, roleColors, sectionSizeMm }: Props) {
           key={m.id}
           member={m}
           color={roleColors.get(m.role) ?? '#888888'}
-          section={sectionSizeMm}
+          section={sectionOf(m)}
         />
       ))}
       <FitCamera members={members} />

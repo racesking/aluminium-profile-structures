@@ -14,43 +14,40 @@ import {
   membersToStructure,
 } from '../../core/templates';
 import { JOINTS, applyJointToMembers, getJoint } from '../../core/joints';
-import { solveCuttingStock } from '../../core/cuttingStock';
-import type { CutPiece, StockBar } from '../../core/types';
+import {
+  solveCuttingStockByProfile,
+  type ProfileCutGroup,
+} from '../../core/cuttingStock';
+import { profileForRole } from '../../core/profiles';
+import type { CutPiece } from '../../core/types';
 import { ParamSlider } from './ParamSlider';
 import { ExpressScene } from './ExpressScene';
 import { ExpressBOM } from './ExpressBOM';
+import { ProfilesPanel } from './ProfilesPanel';
 import { TemplateMoreMenu } from './TemplateMoreMenu';
 import { ErrorBoundary, CanvasErrorFallback } from '../ErrorBoundary';
+import '../../styles/express.css';
 
 const featuredTemplates = TEMPLATES.filter((t) => t.featured);
 const otherTemplates = TEMPLATES.filter((t) => !t.featured);
-import '../../styles/express.css';
 
 export function ExpressBuilder() {
   const setView = useAppStore((s) => s.setView);
 
   const templateId = useExpressStore((s) => s.templateId);
   const paramsByTemplate = useExpressStore((s) => s.paramsByTemplate);
-  const stockMode = useExpressStore((s) => s.stockMode);
-  const buyLength = useExpressStore((s) => s.buyLength);
-  const inventory = useExpressStore((s) => s.inventory);
   const kerf = useExpressStore((s) => s.kerf);
-  const profileName = useExpressStore((s) => s.profileName);
-  const sectionSizeMm = useExpressStore((s) => s.sectionSizeMm);
   const jointId = useExpressStore((s) => s.jointId);
   const throughIndex = useExpressStore((s) => s.throughIndex);
+  const profiles = useExpressStore((s) => s.profiles);
+  const roleProfileByTemplate = useExpressStore((s) => s.roleProfileByTemplate);
+  const stockMode = useExpressStore((s) => s.stockMode);
+  const stockByProfile = useExpressStore((s) => s.stockByProfile);
 
   const setTemplate = useExpressStore((s) => s.setTemplate);
   const setParam = useExpressStore((s) => s.setParam);
   const resetParams = useExpressStore((s) => s.resetParams);
-  const setStockMode = useExpressStore((s) => s.setStockMode);
-  const setBuyLength = useExpressStore((s) => s.setBuyLength);
-  const addInventoryRow = useExpressStore((s) => s.addInventoryRow);
-  const updateInventory = useExpressStore((s) => s.updateInventory);
-  const removeInventory = useExpressStore((s) => s.removeInventory);
   const setKerf = useExpressStore((s) => s.setKerf);
-  const setProfileName = useExpressStore((s) => s.setProfileName);
-  const setSectionSizeMm = useExpressStore((s) => s.setSectionSizeMm);
   const setJoint = useExpressStore((s) => s.setJoint);
   const setThroughIndex = useExpressStore((s) => s.setThroughIndex);
 
@@ -63,14 +60,19 @@ export function ExpressBuilder() {
 
   const template = getTemplate(templateId);
   const params = paramsByTemplate[templateId];
+  const roleMap = roleProfileByTemplate[templateId] ?? {};
 
   // Centerline members drive the 3D preview and the Advanced hand-off (so the
   // structure stays connected); joint compensation only changes cut lengths.
-  const members = useMemo(
-    () => template.generate(params),
-    [template, params],
-  );
+  const members = useMemo(() => template.generate(params), [template, params]);
   const roleColors = useMemo(() => assignRoleColors(members), [members]);
+  const roles = useMemo(
+    () => [...new Set(members.map((m) => m.role))],
+    [members],
+  );
+
+  const profileOf = (role: string) => profileForRole(profiles, roleMap, role);
+  const sectionOf = (member: { role: string }) => profileOf(member.role).sectionMm;
 
   const joint = getJoint(jointId);
   // Continuity only matters for joints that have a through-member (blind).
@@ -78,52 +80,82 @@ export function ExpressBuilder() {
   const continuousRoles = continuousRolesFor(template, effectiveThrough);
 
   const cutMembers = useMemo(
-    () => applyJointToMembers(members, jointId, sectionSizeMm, continuousRoles),
-    [members, jointId, sectionSizeMm, continuousRoles],
+    () => applyJointToMembers(members, jointId, sectionOf, continuousRoles),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [members, jointId, continuousRoles, profiles, roleMap],
   );
 
-  const pieces: CutPiece[] = useMemo(
-    () =>
-      cutMembers.map((m) => ({ edgeId: m.id, length: m.length, label: m.role })),
-    [cutMembers],
+  // Group cut pieces by profile and give each its own stock — pieces of one
+  // section can never be cut from another section's bars.
+  const groups: ProfileCutGroup[] = useMemo(() => {
+    const piecesByProfile = new Map<string, CutPiece[]>();
+    for (const m of cutMembers) {
+      const pid = profileOf(m.role).id;
+      const arr = piecesByProfile.get(pid) ?? [];
+      arr.push({ edgeId: m.id, length: m.length, label: m.role });
+      piecesByProfile.set(pid, arr);
+    }
+    return profiles
+      .filter((p) => piecesByProfile.has(p.id))
+      .map((p) => {
+        const pieces = piecesByProfile.get(p.id)!;
+        const st = stockByProfile[p.id];
+        const stock =
+          stockMode === 'buy'
+            ? [{ id: `buy-${p.id}`, length: st.buyLength, quantity: Math.max(1, pieces.length) }]
+            : st.inventory;
+        return {
+          profileId: p.id,
+          profileName: p.name,
+          sectionMm: p.sectionMm,
+          pieces,
+          stock,
+        };
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cutMembers, profiles, roleMap, stockMode, stockByProfile]);
+
+  const multi = useMemo(
+    () => solveCuttingStockByProfile(groups, kerf),
+    [groups, kerf],
   );
 
-  // In buy mode stock is effectively unlimited: one bar per piece is the
-  // worst case, the optimizer consolidates onto as few bars as possible.
-  const stock: StockBar[] = useMemo(
-    () =>
-      stockMode === 'buy'
-        ? [{ id: 'buy', length: buyLength, quantity: Math.max(1, pieces.length) }]
-        : inventory,
-    [stockMode, buyLength, inventory, pieces.length],
-  );
-
-  const result = useMemo(
-    () => solveCuttingStock(pieces, stock, kerf),
-    [pieces, stock, kerf],
-  );
+  // The Advanced builder is single-profile; hand off the most-used profile.
+  const dominantProfile = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const m of members) {
+      const pid = profileOf(m.role).id;
+      counts.set(pid, (counts.get(pid) ?? 0) + 1);
+    }
+    let best = profiles[0];
+    let bestN = -1;
+    for (const p of profiles) {
+      const n = counts.get(p.id) ?? 0;
+      if (n > bestN) {
+        bestN = n;
+        best = p;
+      }
+    }
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members, profiles, roleMap]);
 
   const handleEditInAdvanced = () => {
     const { nodes, edges } = membersToStructure(members);
-    const handoffStock: StockBar[] =
+    const dpStock = stockByProfile[dominantProfile.id];
+    const handoffStock =
       stockMode === 'buy'
-        ? [
-            {
-              id: uuid(),
-              length: buyLength,
-              quantity: Math.max(result.bars.length, 1),
-            },
-          ]
-        : inventory;
+        ? [{ id: uuid(), length: dpStock.buyLength, quantity: Math.max(members.length, 1) }]
+        : dpStock.inventory.map((b) => ({ ...b }));
     importStructure({
       nodes,
       edges,
       stock: handoffStock,
       kerf,
       profile: {
-        name: profileName,
-        sectionLabel: `${profileName} mm`,
-        sectionSizeMm,
+        name: dominantProfile.name,
+        sectionLabel: `${dominantProfile.name} mm`,
+        sectionSizeMm: dominantProfile.sectionMm,
       },
     });
     setView('advanced');
@@ -166,11 +198,7 @@ export function ExpressBuilder() {
     >
       <header className="toolbar">
         <div className="toolbar-row">
-          <button
-            type="button"
-            onClick={() => setView('wizard')}
-            title="Back to start"
-          >
+          <button type="button" onClick={() => setView('wizard')} title="Back to start">
             ‹ Start
           </button>
           <h1 className="toolbar-brand">Express Builder</h1>
@@ -258,14 +286,8 @@ export function ExpressBuilder() {
 
         <div className="viewport-wrap">
           <div className="viewport-canvas">
-            <ErrorBoundary
-              fallback={(reset) => <CanvasErrorFallback onReset={reset} />}
-            >
-              <ExpressScene
-                members={members}
-                roleColors={roleColors}
-                sectionSizeMm={sectionSizeMm}
-              />
+            <ErrorBoundary fallback={(reset) => <CanvasErrorFallback onReset={reset} />}>
+              <ExpressScene members={members} roleColors={roleColors} sectionOf={sectionOf} />
             </ErrorBoundary>
           </div>
           <div className="mode-badge">
@@ -274,48 +296,10 @@ export function ExpressBuilder() {
         </div>
 
         <aside className="panel right">
-          <div className="panel-header">Stock &amp; Bill of Materials</div>
+          <div className="panel-header">Profiles, Stock &amp; BOM</div>
           <div className="panel-body">
             <div className="section">
-              <p className="section-title">Profile &amp; saw</p>
-              <div className="field-row">
-                <div className="field">
-                  <label>Profile</label>
-                  <input
-                    type="text"
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label>Size (mm)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={sectionSizeMm}
-                    onChange={(e) =>
-                      setSectionSizeMm(parseFloat(e.target.value) || 40)
-                    }
-                    title="Cross-section — member thickness in 3D"
-                  />
-                </div>
-                <div className="field">
-                  <label>Kerf (mm)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={kerf}
-                    onChange={(e) => setKerf(parseFloat(e.target.value) || 0)}
-                    title="Material lost per saw cut"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="section">
-              <p className="section-title">Joint type</p>
+              <p className="section-title">Joint &amp; saw</p>
               <div className="field">
                 <select
                   value={jointId}
@@ -359,112 +343,29 @@ export function ExpressBuilder() {
                   </p>
                 </div>
               )}
-            </div>
 
-            <div className="section">
-              <p className="section-title">Stock</p>
-              <div className="seg-toggle">
-                <button
-                  type="button"
-                  className={stockMode === 'buy' ? 'active' : ''}
-                  onClick={() => setStockMode('buy')}
-                >
-                  Buy new bars
-                </button>
-                <button
-                  type="button"
-                  className={stockMode === 'inventory' ? 'active' : ''}
-                  onClick={() => setStockMode('inventory')}
-                >
-                  My inventory
-                </button>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label>Kerf / blade (mm)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={kerf}
+                  onChange={(e) => setKerf(parseFloat(e.target.value) || 0)}
+                  title="Material lost per saw cut"
+                />
               </div>
-
-              {stockMode === 'buy' ? (
-                <>
-                  <div className="field">
-                    <label>Bar length (mm)</label>
-                    <input
-                      type="number"
-                      min={100}
-                      max={20000}
-                      step={100}
-                      value={buyLength}
-                      onChange={(e) =>
-                        setBuyLength(parseFloat(e.target.value) || 6000)
-                      }
-                    />
-                  </div>
-                  <p className="hint hint-compact">
-                    Unlimited supply — the optimizer uses as few bars as
-                    possible.
-                  </p>
-                </>
-              ) : (
-                <>
-                  {inventory.map((bar) => (
-                    <div key={bar.id} className="stock-row">
-                      <input
-                        type="number"
-                        min={1}
-                        value={bar.length}
-                        onChange={(e) =>
-                          updateInventory(
-                            bar.id,
-                            parseFloat(e.target.value) || 1,
-                            bar.quantity,
-                          )
-                        }
-                        title="Length mm"
-                      />
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
-                        ×
-                      </span>
-                      <input
-                        className="qty"
-                        type="number"
-                        min={0}
-                        value={bar.quantity}
-                        onChange={(e) =>
-                          updateInventory(
-                            bar.id,
-                            bar.length,
-                            parseInt(e.target.value, 10) || 0,
-                          )
-                        }
-                        title="Quantity"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeInventory(bar.id)}
-                        disabled={inventory.length <= 1}
-                        title="Remove"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addInventoryRow}
-                    style={{ marginTop: 6 }}
-                  >
-                    + Add bars
-                  </button>
-                  <p className="hint hint-compact">
-                    Enter the bars and offcuts you already have — shortest
-                    usable pieces are consumed first.
-                  </p>
-                </>
-              )}
             </div>
+
+            <ProfilesPanel roles={roles} />
 
             <ExpressBOM
-              members={cutMembers}
-              result={result}
+              multi={multi}
+              cutMembers={cutMembers}
+              profileOf={profileOf}
               roleColors={roleColors}
               stockMode={stockMode}
-              buyLength={buyLength}
+              buyLengthOf={(pid) => stockByProfile[pid]?.buyLength ?? 6000}
             />
           </div>
         </aside>

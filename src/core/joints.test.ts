@@ -57,4 +57,13 @@ describe('applyJointToMembers — cut length compensation (section 40 mm)', () =
     const cut = applyJointToMembers(tiny, 'blind', 1000, []);
     expect(cut[0].length).toBeGreaterThan(0);
   });
+
+  it('mixed profiles: a rail is shortened by the through (post) section, not its own', () => {
+    // Post = 40 mm, rail = 30 mm. Blind joint → the rail butts the post and
+    // loses half the POST section per end (40), giving 1200 − 40 = 1160.
+    const sectionOf = (m: ExpressMember) => (m.role === 'Post' ? 40 : 30);
+    const cut = applyJointToMembers(members, 'blind', sectionOf, ['Post']);
+    const byRole = Object.fromEntries(cut.map((m) => [m.role, m.length]));
+    expect(byRole).toEqual({ Post: 800, Rail: 1160 });
+  });
 });

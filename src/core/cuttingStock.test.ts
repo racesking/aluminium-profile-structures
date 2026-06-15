@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { solveCuttingStock, extractCutList } from './cuttingStock';
+import {
+  solveCuttingStock,
+  solveCuttingStockByProfile,
+  extractCutList,
+} from './cuttingStock';
 import type { CutPiece, StockBar } from './types';
 
 function pieces(...lengths: number[]): CutPiece[] {
@@ -78,6 +82,38 @@ describe('solveCuttingStock — accounting', () => {
     expect(result.totalUsed + result.totalWaste).toBeCloseTo(consumed, 1);
     expect(result.wastePercent).toBeGreaterThanOrEqual(0);
     expect(result.wastePercent).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('solveCuttingStockByProfile', () => {
+  it('optimizes each profile against its own stock and never mixes sections', () => {
+    const groups = [
+      { profileId: 'a', profileName: '40×40', sectionMm: 40, pieces: pieces(800, 800), stock: [stock(6000, 1)] },
+      { profileId: 'b', profileName: '30×30', sectionMm: 30, pieces: pieces(1160, 1160), stock: [stock(6000, 1)] },
+    ];
+    const r = solveCuttingStockByProfile(groups, 3);
+    expect(r.byProfile).toHaveLength(2);
+    expect(r.totalBars).toBe(2); // one bar per profile
+    expect(r.anyUnplaced).toBe(false);
+    expect(r.totalCutLength).toBe(800 + 800 + 1160 + 1160);
+  });
+
+  it('skips profiles that have no pieces', () => {
+    const groups = [
+      { profileId: 'a', profileName: 'A', sectionMm: 40, pieces: pieces(500), stock: [stock(6000, 1)] },
+      { profileId: 'b', profileName: 'B', sectionMm: 30, pieces: [], stock: [stock(6000, 1)] },
+    ];
+    const r = solveCuttingStockByProfile(groups, 0);
+    expect(r.byProfile.map((p) => p.profileId)).toEqual(['a']);
+  });
+
+  it('flags a shortage when any single profile runs short', () => {
+    const groups = [
+      { profileId: 'a', profileName: 'A', sectionMm: 40, pieces: pieces(500), stock: [stock(6000, 1)] },
+      { profileId: 'b', profileName: 'B', sectionMm: 30, pieces: pieces(2000), stock: [stock(1000, 1)] },
+    ];
+    const r = solveCuttingStockByProfile(groups, 0);
+    expect(r.anyUnplaced).toBe(true);
   });
 });
 

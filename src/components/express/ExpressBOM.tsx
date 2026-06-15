@@ -1,16 +1,20 @@
 import { useMemo } from 'react';
-import type { BarAssignment, CuttingResult } from '../../core/types';
-import type { ExpressMember } from '../../core/templates';
+import type { BarAssignment } from '../../core/types';
+import type {
+  MultiCuttingResult,
+  ProfileCutResult,
+} from '../../core/cuttingStock';
+import type { CutMember } from '../../core/joints';
+import type { ProfileDef } from '../../core/profiles';
 
 type Props = {
-  members: ExpressMember[];
-  result: CuttingResult;
+  multi: MultiCuttingResult;
+  cutMembers: CutMember[];
+  profileOf: (role: string) => ProfileDef;
   roleColors: Map<string, string>;
   stockMode: 'buy' | 'inventory';
-  buyLength: number;
+  buyLengthOf: (profileId: string) => number;
 };
-
-type MemberGroup = { role: string; length: number; qty: number };
 
 function CutStrip({
   bar,
@@ -27,10 +31,7 @@ function CutStrip({
           <div
             key={i}
             className="cut-seg"
-            style={{
-              width: `${pct}%`,
-              background: roleColors.get(c.label ?? '') ?? '#888888',
-            }}
+            style={{ width: `${pct}%`, background: roleColors.get(c.label ?? '') ?? '#888888' }}
             title={`${c.label ?? 'Cut'} — ${c.length} mm`}
           >
             {pct > 8 ? c.length : ''}
@@ -50,15 +51,25 @@ function CutStrip({
   );
 }
 
-export function ExpressBOM({
+function ProfileBOMSection({
+  group,
   members,
-  result,
   roleColors,
   stockMode,
   buyLength,
-}: Props) {
-  const memberGroups = useMemo(() => {
-    const groups = new Map<string, MemberGroup>();
+  showHeader,
+}: {
+  group: ProfileCutResult;
+  members: CutMember[];
+  roleColors: Map<string, string>;
+  stockMode: 'buy' | 'inventory';
+  buyLength: number;
+  showHeader: boolean;
+}) {
+  const { result } = group;
+
+  const memberRows = useMemo(() => {
+    const groups = new Map<string, { role: string; length: number; qty: number }>();
     for (const m of members) {
       const key = `${m.role}|${m.length}`;
       const g = groups.get(key);
@@ -68,34 +79,28 @@ export function ExpressBOM({
     return [...groups.values()].sort((a, b) => b.length - a.length);
   }, [members]);
 
-  const totalCutLength = useMemo(
-    () => Math.round(members.reduce((s, m) => s + m.length, 0)),
-    [members],
-  );
-
-  const barsUsed = result.bars.length;
-  const usedStockTotal = result.bars.reduce((s, b) => s + b.stockLength, 0);
-  const wastePct =
-    usedStockTotal > 0
-      ? Math.round((result.totalWaste / usedStockTotal) * 1000) / 10
-      : 0;
-
   // Identical bars collapse into one diagram with a × count.
   const barGroups = useMemo(() => {
     const groups = new Map<string, { bar: BarAssignment; qty: number }>();
     for (const bar of result.bars) {
-      const signature = `${bar.stockLength}|${bar.cuts
-        .map((c) => `${c.length}:${c.label ?? ''}`)
-        .join(',')}`;
-      const g = groups.get(signature);
+      const sig = `${bar.stockLength}|${bar.cuts.map((c) => `${c.length}:${c.label ?? ''}`).join(',')}`;
+      const g = groups.get(sig);
       if (g) g.qty += 1;
-      else groups.set(signature, { bar, qty: 1 });
+      else groups.set(sig, { bar, qty: 1 });
     }
     return [...groups.values()];
   }, [result.bars]);
 
+  const barsUsed = result.bars.length;
+
   return (
-    <>
+    <div className="profile-bom">
+      {showHeader && (
+        <p className="profile-bom-head">
+          {group.profileName} · {group.sectionMm} mm
+        </p>
+      )}
+
       {stockMode === 'buy' && barsUsed > 0 && result.unplaced.length === 0 && (
         <div className="buy-line">
           <span>Bars to buy</span>
@@ -105,48 +110,22 @@ export function ExpressBOM({
         </div>
       )}
 
-      <div className="bom-stats">
-        <div className="stat-card">
-          <strong>Members</strong>
-          <span>{members.length}</span>
-        </div>
-        <div className="stat-card">
-          <strong>Total cut</strong>
-          <span>{(totalCutLength / 1000).toFixed(2)} m</span>
-        </div>
-        <div className="stat-card">
-          <strong>Bars used</strong>
-          <span>{barsUsed}</span>
-        </div>
-        <div className="stat-card">
-          <strong>Waste</strong>
-          <span>{wastePct}%</span>
-        </div>
-      </div>
+      <table className="bom-table">
+        <tbody>
+          {memberRows.map((g) => (
+            <tr key={`${g.role}|${g.length}`}>
+              <td>
+                <span className="role-dot" style={{ background: roleColors.get(g.role) ?? '#888' }} />
+                {g.role}
+              </td>
+              <td className="num">{g.length} mm</td>
+              <td className="num">× {g.qty}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-      <div className="section">
-        <p className="section-title">Members — cut lengths</p>
-        <table className="bom-table">
-          <tbody>
-            {memberGroups.map((g) => (
-              <tr key={`${g.role}|${g.length}`}>
-                <td>
-                  <span
-                    className="role-dot"
-                    style={{ background: roleColors.get(g.role) ?? '#888' }}
-                  />
-                  {g.role}
-                </td>
-                <td className="num">{g.length} mm</td>
-                <td className="num">× {g.qty}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="section">
-        <p className="section-title">Cut plan</p>
+      <div style={{ marginTop: 10 }}>
         {barGroups.map(({ bar, qty }, i) => (
           <div key={i} className="cut-group">
             <div className="cut-group-head">
@@ -159,32 +138,80 @@ export function ExpressBOM({
           </div>
         ))}
 
-        {result.unplaced.length > 0 && (
+        {result.unplaced.length > 0 ? (
           <div className="shortage">
-            {result.unplaced.length} piece
-            {result.unplaced.length > 1 ? 's' : ''} won&apos;t fit (
+            {result.unplaced.length} piece{result.unplaced.length > 1 ? 's' : ''} won&apos;t fit (
             {result.shortageMm} mm missing).
             {stockMode === 'buy' ? (
               <>
                 <br />
-                Longest piece is{' '}
-                {Math.max(...result.unplaced.map((p) => p.length))} mm — increase
-                the bar length.
+                Longest piece is {Math.max(...result.unplaced.map((p) => p.length))} mm — increase the
+                bar length.
               </>
             ) : (
               result.suggestedBars && (
                 <>
                   <br />
-                  Add {result.suggestedBars.quantity} ×{' '}
-                  {result.suggestedBars.length} mm to your stock.
+                  Add {result.suggestedBars.quantity} × {result.suggestedBars.length} mm to this
+                  profile&apos;s stock.
                 </>
               )
             )}
           </div>
+        ) : (
+          barsUsed > 0 && <div className="ok">All cuts fit. Kerf included between cuts.</div>
         )}
-        {result.unplaced.length === 0 && barsUsed > 0 && (
-          <div className="ok">All cuts fit. Kerf included between cuts.</div>
-        )}
+      </div>
+    </div>
+  );
+}
+
+export function ExpressBOM({
+  multi,
+  cutMembers,
+  profileOf,
+  roleColors,
+  stockMode,
+  buyLengthOf,
+}: Props) {
+  const multiProfile = multi.byProfile.length > 1;
+
+  return (
+    <>
+      <div className="bom-stats">
+        <div className="stat-card">
+          <strong>Members</strong>
+          <span>{cutMembers.length}</span>
+        </div>
+        <div className="stat-card">
+          <strong>Total cut</strong>
+          <span>{(multi.totalCutLength / 1000).toFixed(2)} m</span>
+        </div>
+        <div className="stat-card">
+          <strong>Bars used</strong>
+          <span>{multi.totalBars}</span>
+        </div>
+        <div className="stat-card">
+          <strong>Waste</strong>
+          <span>{multi.wastePercent}%</span>
+        </div>
+      </div>
+
+      <div className="section">
+        <p className="section-title">
+          Bill of materials{multiProfile ? ' — by profile' : ' — cut lengths'}
+        </p>
+        {multi.byProfile.map((group) => (
+          <ProfileBOMSection
+            key={group.profileId}
+            group={group}
+            members={cutMembers.filter((m) => profileOf(m.role).id === group.profileId)}
+            roleColors={roleColors}
+            stockMode={stockMode}
+            buyLength={buyLengthOf(group.profileId)}
+            showHeader={multiProfile}
+          />
+        ))}
       </div>
     </>
   );
