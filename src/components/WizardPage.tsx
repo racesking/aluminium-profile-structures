@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
-import { openProjectAndRoute } from '../store/projectIO';
 import '../styles/wizard.css';
 
 function ExpressArt() {
@@ -90,6 +89,9 @@ export function WizardPage() {
   const handleOpen = async () => {
     setBusy(true);
     try {
+      // Lazy-loaded so the wizard's initial bundle stays free of the stores,
+      // core logic and zod (they arrive only when a project is opened).
+      const { openProjectAndRoute } = await import('../store/projectIO');
       const res = await openProjectAndRoute();
       if (res.status === 'error') alert(res.message);
     } finally {
