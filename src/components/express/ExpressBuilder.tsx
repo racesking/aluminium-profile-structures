@@ -191,6 +191,7 @@ export function ExpressBuilder() {
     units,
     projectName: template.name,
     dateStr: new Date().toLocaleDateString(),
+    roleColors,
   });
 
   const handleExportCsv = () => {
@@ -255,8 +256,12 @@ export function ExpressBuilder() {
             <button type="button" onClick={handleExportCsv} title="Export the BOM as CSV">
               CSV
             </button>
-            <button type="button" onClick={handlePrint} title="Printable cut sheet (Save as PDF)">
-              Print
+            <button
+              type="button"
+              onClick={handlePrint}
+              title="Isometric technical drawing + parts list (Save as PDF)"
+            >
+              Drawing
             </button>
             <button type="button" onClick={() => setView('settings')} title="Settings">
               ⚙

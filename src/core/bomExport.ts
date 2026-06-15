@@ -3,6 +3,7 @@ import type { CutMember } from './joints';
 import type { ProfileDef } from './profiles';
 import type { LengthUnit } from './units';
 import { toDisplay, formatLength } from './units';
+import { structureDrawingSvg } from './drawing';
 
 export type BomExportInput = {
   multi: MultiCuttingResult;
@@ -12,6 +13,8 @@ export type BomExportInput = {
   projectName: string;
   /** Pre-formatted date string (kept out of core so it stays deterministic). */
   dateStr: string;
+  /** Role → colour map, for the isometric drawing + parts list swatches. */
+  roleColors?: Map<string, string>;
 };
 
 type MemberRow = {
@@ -96,20 +99,22 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
-/** A clean, printable cut sheet (open in a window → print / Save as PDF). */
+/**
+ * A printable technical drawing: isometric schematic with dimension lines and
+ * numbered balloon callouts, a parts list, and the per-profile cut plan.
+ * Open in a window → print / Save as PDF.
+ */
 export function bomToPrintHtml(input: BomExportInput): string {
-  const { units, multi, cutMembers, profileOf, projectName, dateStr } = input;
-  const rows = memberRows(cutMembers, profileOf);
+  const { units, multi, cutMembers, profileOf, projectName, dateStr, roleColors } = input;
 
-  const memberTable = (profileId: string) => {
-    const r = rows.filter((x) => x.profileId === profileId);
-    return `<table><thead><tr><th>Member</th><th class="num">Length</th><th class="num">Qty</th></tr></thead><tbody>${r
-      .map(
-        (x) =>
-          `<tr><td>${escapeHtml(x.role)}</td><td class="num">${formatLength(x.lengthMm, units)}</td><td class="num">${x.qty}</td></tr>`,
-      )
-      .join('')}</tbody></table>`;
-  };
+  const drawing = structureDrawingSvg(cutMembers, roleColors ?? new Map(), units);
+
+  const partsList = `<table><thead><tr><th class="num">Item</th><th></th><th>Profile</th><th class="num">Section</th><th>Member</th><th class="num">Length</th><th class="num">Qty</th></tr></thead><tbody>${drawing.items
+    .map((it) => {
+      const p = profileOf(it.role);
+      return `<tr><td class="num"><span class="balloon">${it.n}</span></td><td><span class="swatch" style="background:${it.color}"></span></td><td>${escapeHtml(p.name)}</td><td class="num">${p.sectionMm} mm</td><td>${escapeHtml(it.role)}</td><td class="num">${formatLength(it.lengthMm, units)}</td><td class="num">${it.qty}</td></tr>`;
+    })
+    .join('')}</tbody></table>`;
 
   const cutPlan = (bars: MultiCuttingResult['byProfile'][number]['result']['bars']) => {
     // Collapse identical bars into one row with a × count.
@@ -130,40 +135,41 @@ export function bomToPrintHtml(input: BomExportInput): string {
       .join('')}</tbody></table>`;
   };
 
-  const sections = multi.byProfile
+  const cutSections = multi.byProfile
     .map(
       (g) => `
       <section>
-        <h2>${escapeHtml(g.profileName)} · ${g.sectionMm} mm</h2>
-        ${memberTable(g.profileId)}
-        <h3>Cut plan — ${g.result.bars.length} bar(s), waste ${formatLength(g.result.totalWaste, units)}</h3>
+        <h3>${escapeHtml(g.profileName)} · ${g.sectionMm} mm — ${g.result.bars.length} bar(s), waste ${formatLength(g.result.totalWaste, units)}</h3>
         ${cutPlan(g.result.bars)}
       </section>`,
     )
     .join('');
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(projectName)} — Cut sheet</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(projectName)} — Drawing</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, Arial, sans-serif; color: #111; margin: 28px; font-size: 13px; }
-    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 18px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 16px; }
     h1 { font-size: 18px; margin: 0; }
     .meta { color: #666; font-size: 12px; }
-    .summary { display: flex; gap: 22px; margin: 0 0 20px; font-size: 12px; }
+    .summary { display: flex; gap: 22px; margin: 0 0 16px; font-size: 12px; }
     .summary b { display: block; font-size: 16px; }
-    section { margin-bottom: 22px; break-inside: avoid; }
-    h2 { font-size: 14px; margin: 0 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    .drawing { border: 1px solid #ccc; border-radius: 4px; padding: 8px; margin-bottom: 20px; break-inside: avoid; }
+    section { margin-bottom: 18px; break-inside: avoid; }
+    h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
     h3 { font-size: 12px; color: #444; margin: 14px 0 6px; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
+    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #e3e3e3; vertical-align: middle; }
     th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
     .num { text-align: right; white-space: nowrap; }
+    .balloon { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; border: 1.2px solid #111; border-radius: 50%; font-family: monospace; font-size: 11px; font-weight: 600; }
+    .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; }
     @media print { body { margin: 12mm; } }
   </style></head>
   <body>
     <header>
       <h1>${escapeHtml(projectName)}</h1>
-      <span class="meta">Cut sheet · ${escapeHtml(dateStr)}</span>
+      <span class="meta">Technical drawing · ${escapeHtml(dateStr)}</span>
     </header>
     <div class="summary">
       <span>Members<b>${cutMembers.length}</b></span>
@@ -171,6 +177,10 @@ export function bomToPrintHtml(input: BomExportInput): string {
       <span>Bars<b>${multi.totalBars}</b></span>
       <span>Waste<b>${multi.wastePercent}%</b></span>
     </div>
-    ${sections}
+    <div class="drawing">${drawing.svg}</div>
+    <h2>Parts list</h2>
+    ${partsList}
+    <h2>Cut plan</h2>
+    ${cutSections}
   </body></html>`;
 }
