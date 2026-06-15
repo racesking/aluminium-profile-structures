@@ -20,6 +20,7 @@ import { ParamSlider } from './ParamSlider';
 import { ExpressScene } from './ExpressScene';
 import { ExpressBOM } from './ExpressBOM';
 import { TemplateMoreMenu } from './TemplateMoreMenu';
+import { ErrorBoundary, CanvasErrorFallback } from '../ErrorBoundary';
 
 const featuredTemplates = TEMPLATES.filter((t) => t.featured);
 const otherTemplates = TEMPLATES.filter((t) => !t.featured);
@@ -257,11 +258,15 @@ export function ExpressBuilder() {
 
         <div className="viewport-wrap">
           <div className="viewport-canvas">
-            <ExpressScene
-              members={members}
-              roleColors={roleColors}
-              sectionSizeMm={sectionSizeMm}
-            />
+            <ErrorBoundary
+              fallback={(reset) => <CanvasErrorFallback onReset={reset} />}
+            >
+              <ExpressScene
+                members={members}
+                roleColors={roleColors}
+                sectionSizeMm={sectionSizeMm}
+              />
+            </ErrorBoundary>
           </div>
           <div className="mode-badge">
             {template.name} · <span className="express-badge-dims">{dims}</span>

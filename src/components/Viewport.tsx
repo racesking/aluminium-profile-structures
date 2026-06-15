@@ -12,6 +12,7 @@ import { StructureScene } from './StructureScene';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
 import { HelpModal } from './HelpModal';
 import { MemberDimensionModal } from './MemberDimensionModal';
+import { ErrorBoundary, CanvasErrorFallback } from './ErrorBoundary';
 
 const VIEW_DIRECTIONS: Record<
   string,
@@ -131,31 +132,35 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
       }}
     >
       <div className="viewport-canvas">
-        <Canvas
-        style={{ width: '100%', height: '100%', display: 'block' }}
-        camera={{
-          position: [120, 100, 120],
-          fov: 45,
-          near: 0.1,
-          far: Math.max(200000, span * 100),
-        }}
-        gl={{ antialias: true, alpha: false }}
-        onCreated={({ gl }) => {
-          gl.setClearColor('#f4f4f4');
-        }}
-      >
-        <ambientLight intensity={0.85} />
-        <directionalLight position={[80, 120, 60]} intensity={0.6} />
-        <SceneGrid />
-        <StructureScene />
-        <CameraController />
-        <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
-          <GizmoViewport
-            axisColors={['#111', '#444', '#888']}
-            labelColor="#111"
-          />
-        </GizmoHelper>
-      </Canvas>
+        <ErrorBoundary
+          fallback={(reset) => <CanvasErrorFallback onReset={reset} />}
+        >
+          <Canvas
+            style={{ width: '100%', height: '100%', display: 'block' }}
+            camera={{
+              position: [120, 100, 120],
+              fov: 45,
+              near: 0.1,
+              far: Math.max(200000, span * 100),
+            }}
+            gl={{ antialias: true, alpha: false }}
+            onCreated={({ gl }) => {
+              gl.setClearColor('#f4f4f4');
+            }}
+          >
+            <ambientLight intensity={0.85} />
+            <directionalLight position={[80, 120, 60]} intensity={0.6} />
+            <SceneGrid />
+            <StructureScene />
+            <CameraController />
+            <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
+              <GizmoViewport
+                axisColors={['#111', '#444', '#888']}
+                labelColor="#111"
+              />
+            </GizmoHelper>
+          </Canvas>
+        </ErrorBoundary>
       </div>
       <div className="mode-badge">{modeLabel}</div>
       <ContextMenu
