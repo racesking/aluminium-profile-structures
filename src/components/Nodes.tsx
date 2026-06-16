@@ -3,7 +3,7 @@ import { useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useStructureStore } from '../store/structureStore';
 import { maybeSnapVec3 } from '../core/geometry';
-import { getNodeRadiusMm, getProfileSectionMm } from '../core/visualScale';
+import { getNodeRadiusMm } from '../core/visualScale';
 import {
   applyAxisLock,
   makeCameraPlane,
@@ -17,11 +17,13 @@ function NodeSphere({
   position,
   selected,
   connectHighlight,
+  nodeRadius,
 }: {
   id: string;
   position: [number, number, number];
   selected: boolean;
   connectHighlight: boolean;
+  nodeRadius: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [dragging, setDragging] = useState(false);
@@ -29,7 +31,6 @@ function NodeSphere({
   const toolMode = useStructureStore((s) => s.toolMode);
   const snapToGrid = useStructureStore((s) => s.snapToGrid);
   const gridCellSize = useStructureStore((s) => s.gridCellSize);
-  const profile = useStructureStore((s) => s.profile);
   const workPlane = useStructureStore((s) => s.workPlane);
   const axisLock = useStructureStore((s) => s.axisLock);
   const setSelection = useStructureStore((s) => s.setSelection);
@@ -112,7 +113,6 @@ function NodeSphere({
     dragOrigin.current = null;
   };
 
-  const nodeRadius = getNodeRadiusMm(getProfileSectionMm(profile));
   const scale = selected || connectHighlight ? 1.35 : 1;
 
   return (
@@ -137,8 +137,15 @@ function NodeSphere({
 
 export function Nodes() {
   const nodes = useStructureStore((s) => s.nodes);
+  const profiles = useStructureStore((s) => s.profiles);
   const selection = useStructureStore((s) => s.selection);
   const connectFromId = useStructureStore((s) => s.connectFromId);
+
+  const maxSectionMm = profiles.reduce(
+    (max, p) => Math.max(max, p.sectionMm),
+    20,
+  );
+  const nodeRadius = getNodeRadiusMm(maxSectionMm);
 
   return (
     <group>
@@ -149,6 +156,7 @@ export function Nodes() {
           position={node.position}
           selected={selection?.type === 'node' && selection.id === node.id}
           connectHighlight={connectFromId === node.id}
+          nodeRadius={nodeRadius}
         />
       ))}
     </group>

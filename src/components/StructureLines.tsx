@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useStructureStore } from '../store/structureStore';
-import { getMemberRadiusMm, getProfileSectionMm } from '../core/visualScale';
+import { getMemberRadiusMm } from '../core/visualScale';
+import { profileColorAt } from '../core/profiles';
 
 function ProfileEdge({
   edgeId,
@@ -9,12 +10,14 @@ function ProfileEdge({
   to,
   selected,
   radius,
+  color,
 }: {
   edgeId: string;
   from: [number, number, number];
   to: [number, number, number];
   selected: boolean;
   radius: number;
+  color: string;
 }) {
   const setEdgeSelection = useStructureStore((s) => s.setEdgeSelection);
   const secondEdgeId = useStructureStore((s) => s.secondEdgeId);
@@ -50,9 +53,7 @@ function ProfileEdge({
     >
       <cylinderGeometry args={[radius, radius, length, 10]} />
       <meshStandardMaterial
-        color={
-          selected || secondEdgeId === edgeId ? '#111111' : '#888888'
-        }
+        color={selected || secondEdgeId === edgeId ? '#111111' : color}
         metalness={0.1}
         roughness={0.6}
       />
@@ -63,11 +64,18 @@ function ProfileEdge({
 export function StructureLines() {
   const nodes = useStructureStore((s) => s.nodes);
   const edges = useStructureStore((s) => s.edges);
-  const profile = useStructureStore((s) => s.profile);
+  const profiles = useStructureStore((s) => s.profiles);
+  const getEdgeProfile = useStructureStore((s) => s.getEdgeProfile);
   const selectedEdgeIds = useStructureStore((s) => s.selectedEdgeIds);
   const secondEdgeId = useStructureStore((s) => s.secondEdgeId);
 
-  const radius = getMemberRadiusMm(getProfileSectionMm(profile));
+  const profileIndex = useMemo(() => {
+    const map: Record<string, number> = {};
+    profiles.forEach((p, i) => {
+      map[p.id] = i;
+    });
+    return map;
+  }, [profiles]);
 
   return (
     <group>
@@ -75,6 +83,9 @@ export function StructureLines() {
         const fromNode = nodes.find((n) => n.id === edge.fromId);
         const toNode = nodes.find((n) => n.id === edge.toId);
         if (!fromNode || !toNode) return null;
+        const profile = getEdgeProfile(edge.id);
+        const radius = getMemberRadiusMm(profile.sectionMm);
+        const color = profileColorAt(profileIndex[profile.id] ?? 0);
         return (
           <ProfileEdge
             key={edge.id}
@@ -82,6 +93,7 @@ export function StructureLines() {
             from={fromNode.position}
             to={toNode.position}
             radius={radius}
+            color={color}
             selected={
               selectedEdgeIds.includes(edge.id) || secondEdgeId === edge.id
             }

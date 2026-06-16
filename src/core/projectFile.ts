@@ -18,8 +18,18 @@ export type StructurePayload = {
   nodes: Node[];
   edges: { id: string; fromId: string; toId: string }[];
   constraints: EdgeConstraint[];
-  profile: Profile;
-  stock: StockBar[];
+
+  /* ---- multi-profile (v2) ---- */
+  profiles?: ProfileDef[];
+  /** Per-edge profile id assignment. Unmapped edges use the first profile. */
+  edgeProfile?: Record<string, string>;
+  /** Per-profile stock bars, keyed by profile id. */
+  stockByProfile?: Record<string, StockBar[]>;
+
+  /* ---- legacy single-profile (v1), read for migration ---- */
+  profile?: Profile;
+  stock?: StockBar[];
+
   kerf: number;
   snap: number;
   gridCellSize: number;
@@ -198,13 +208,24 @@ const ProfileSchema = z.object({
   sectionSizeMm: z.number().optional(),
 });
 
+const ProfileDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  sectionMm: z.number(),
+});
+
 const StructurePayloadSchema = z
   .object({
     nodes: z.array(NodeSchema),
     edges: z.array(EdgeSchema),
     constraints: z.array(ConstraintSchema),
-    profile: ProfileSchema,
-    stock: z.array(StockBarSchema),
+    // multi-profile (v2)
+    profiles: z.array(ProfileDefSchema).optional(),
+    edgeProfile: z.record(z.string()).optional(),
+    stockByProfile: z.record(z.array(StockBarSchema)).optional(),
+    // legacy single-profile (v1), kept optional for migration
+    profile: ProfileSchema.optional(),
+    stock: z.array(StockBarSchema).optional(),
     kerf: z.number(),
     snap: z.number(),
     gridCellSize: z.number(),
@@ -213,12 +234,6 @@ const StructurePayloadSchema = z
     duplicateOffset: Vec3Schema,
   })
   .passthrough();
-
-const ProfileDefSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  sectionMm: z.number(),
-});
 const ProfileStockSchema = z.object({
   buyLength: z.number(),
   inventory: z.array(StockBarSchema),

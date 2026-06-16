@@ -40,3 +40,23 @@ export function profileForRole(
   const id = roleMap[role];
   return profiles.find((p) => p.id === id) ?? profiles[0];
 }
+
+/**
+ * Distinct high-contrast colors for profiles, cycled by index. Deliberately a
+ * different feel from ROLE_PALETTE (templates.ts) so profile colors read apart
+ * from the Express role colors.
+ */
+export const PROFILE_PALETTE: string[] = [
+  '#0d9488', // teal
+  '#7c3aed', // violet
+  '#65a30d', // lime
+  '#e11d48', // rose
+  '#0284c7', // sky
+  '#d97706', // gold
+];
+
+/** The palette color for the given profile index, cycling the palette. */
+export function profileColorAt(index: number): string {
+  const n = PROFILE_PALETTE.length;
+  return PROFILE_PALETTE[((index % n) + n) % n];
+}

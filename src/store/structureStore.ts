@@ -26,13 +26,21 @@ import { parseSectionSizeMm } from '../core/visualScale';
 import type { ClipboardPayload } from '../core/types';
 import type { StructurePayload } from '../core/projectFile';
 import {
-  extractCutList,
   formatCutList,
-  solveCuttingStock,
+  solveCuttingStockByProfile,
 } from '../core/cuttingStock';
 import type {
+  MultiCuttingResult,
+  ProfileCutGroup,
+} from '../core/cuttingStock';
+import {
+  clampSection,
+  makeProfile,
+  type ProfileDef,
+} from '../core/profiles';
+import type {
   AxisLock,
-  CuttingResult,
+  CutPiece,
   EdgeConstraint,
   HistorySnapshot,
   Node,
@@ -51,11 +59,13 @@ function cloneSnapshot(
   nodes: Node[],
   edges: { id: string; fromId: string; toId: string }[],
   constraints: EdgeConstraint[],
+  edgeProfile: Record<string, string>,
 ): HistorySnapshot {
   return {
     nodes: nodes.map((n) => ({ ...n, position: [...n.position] as Vec3 })),
     edges: edges.map((e) => ({ ...e })),
     constraints: constraints.map((c) => ({ ...c })),
+    edgeProfile: { ...edgeProfile },
   };
 }
 
@@ -63,8 +73,11 @@ type StructureState = {
   nodes: Node[];
   edges: { id: string; fromId: string; toId: string }[];
   constraints: EdgeConstraint[];
-  profile: { name: string; sectionLabel?: string; sectionSizeMm?: number };
-  stock: StockBar[];
+  profiles: ProfileDef[];
+  /** edgeId → profileId. An edge not present falls back to profiles[0]. */
+  edgeProfile: Record<string, string>;
+  /** profileId → stock bars. */
+  stockByProfile: Record<string, StockBar[]>;
   kerf: number;
   snap: number;
   gridCellSize: number;
@@ -79,7 +92,7 @@ type StructureState = {
   toolMode: ToolMode;
   connectFromId: string | null;
   viewPreset: ViewPreset;
-  cuttingResult: CuttingResult | null;
+  cuttingResult: MultiCuttingResult | null;
   secondNodeId: string | null;
   historyPast: HistorySnapshot[];
   historyFuture: HistorySnapshot[];
@@ -90,8 +103,12 @@ type StructureState = {
   undo: () => void;
   redo: () => void;
 
-  setProfile: (name: string, sectionLabel?: string) => void;
-  setSectionSizeMm: (size: number) => void;
+  getEdgeProfileId: (edgeId: string) => string;
+  getEdgeProfile: (edgeId: string) => ProfileDef;
+  addProfile: () => void;
+  removeProfile: (id: string) => void;
+  updateProfile: (id: string, patch: { name?: string; sectionMm?: number }) => void;
+  assignSelectedToProfile: (profileId: string) => void;
   setSnap: (snap: number) => void;
   setGridCellSize: (size: number) => void;
   setSnapToGrid: (on: boolean) => void;
@@ -133,9 +150,14 @@ type StructureState = {
   addConstraintPerpendicular: (edgeAId: string, edgeBId: string) => void;
   removeConstraint: (id: string) => void;
 
-  addStockRow: () => void;
-  updateStock: (id: string, length: number, quantity: number) => void;
-  removeStock: (id: string) => void;
+  addStockRow: (profileId: string) => void;
+  updateStock: (
+    profileId: string,
+    rowId: string,
+    length: number,
+    quantity: number,
+  ) => void;
+  removeStock: (profileId: string, rowId: string) => void;
 
   loadBoxFrame: (width: number, depth: number, height: number) => void;
   importStructure: (payload: {
@@ -155,15 +177,83 @@ type StructureState = {
   exportCutList: () => string;
 };
 
-const defaultStock: StockBar[] = [
-  { id: uuid(), length: 1000, quantity: 6 },
-];
+function defaultStockBars(): StockBar[] {
+  return [{ id: uuid(), length: 1000, quantity: 6 }];
+}
+
+type MultiProfileSlice = {
+  profiles: ProfileDef[];
+  edgeProfile: Record<string, string>;
+  stockByProfile: Record<string, StockBar[]>;
+};
+
+/** The initial single-profile slice for a fresh Advanced project. */
+function defaultProfileSlice(): MultiProfileSlice {
+  const profile = makeProfile('20×20', 20);
+  return {
+    profiles: [profile],
+    edgeProfile: {},
+    stockByProfile: { [profile.id]: defaultStockBars() },
+  };
+}
+
+/**
+ * Build the multi-profile slice from a payload, preferring v2 fields and
+ * migrating legacy single-profile (`profile` + `stock`) data when needed.
+ */
+function migrateProfileSlice(data: {
+  profiles?: ProfileDef[];
+  edgeProfile?: Record<string, string>;
+  stockByProfile?: Record<string, StockBar[]>;
+  profile?: { name?: string; sectionLabel?: string; sectionSizeMm?: number };
+  stock?: StockBar[];
+}): MultiProfileSlice {
+  if (Array.isArray(data.profiles) && data.profiles.length > 0) {
+    const profiles = data.profiles.map((p) => ({
+      id: p.id ?? uuid(),
+      name: typeof p.name === 'string' ? p.name : '20×20',
+      sectionMm: clampSection(typeof p.sectionMm === 'number' ? p.sectionMm : 20),
+    }));
+    const stockByProfile: Record<string, StockBar[]> = {};
+    for (const p of profiles) {
+      const bars = data.stockByProfile?.[p.id];
+      stockByProfile[p.id] =
+        Array.isArray(bars) && bars.length > 0
+          ? bars.map((b) => ({
+              id: b.id ?? uuid(),
+              length: Math.max(1, b.length),
+              quantity: Math.max(0, b.quantity),
+            }))
+          : defaultStockBars();
+    }
+    return {
+      profiles,
+      edgeProfile: data.edgeProfile ?? {},
+      stockByProfile,
+    };
+  }
+
+  // Legacy single-profile project → one profile carrying the old section + stock.
+  const section =
+    data.profile?.sectionSizeMm ??
+    parseSectionSizeMm(data.profile?.sectionLabel, 20);
+  const profile = makeProfile(data.profile?.name ?? '20×20', section);
+  return {
+    profiles: [profile],
+    edgeProfile: {},
+    stockByProfile: {
+      [profile.id]:
+        data.stock && data.stock.length > 0 ? data.stock : defaultStockBars(),
+    },
+  };
+}
 
 function applySnapshot(snapshot: HistorySnapshot): Partial<StructureState> {
   return {
     nodes: snapshot.nodes,
     edges: snapshot.edges,
     constraints: snapshot.constraints,
+    edgeProfile: { ...snapshot.edgeProfile },
     cuttingResult: null,
   };
 }
@@ -172,8 +262,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   nodes: [],
   edges: [],
   constraints: [],
-  profile: { name: '20×20', sectionLabel: '20×20 mm', sectionSizeMm: 20 },
-  stock: defaultStock,
+  ...defaultProfileSlice(),
   kerf: 0,
   snap: 5,
   gridCellSize: 5,
@@ -196,8 +285,8 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   canRedo: false,
 
   pushHistory: () => {
-    const { nodes, edges, constraints, historyPast } = get();
-    const snap = cloneSnapshot(nodes, edges, constraints);
+    const { nodes, edges, constraints, edgeProfile, historyPast } = get();
+    const snap = cloneSnapshot(nodes, edges, constraints, edgeProfile);
     const past = [...historyPast, snap].slice(-MAX_HISTORY);
     set({
       historyPast: past,
@@ -208,9 +297,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   undo: () => {
-    const { historyPast, historyFuture, nodes, edges, constraints } = get();
+    const { historyPast, historyFuture, nodes, edges, constraints, edgeProfile } = get();
     if (historyPast.length === 0) return;
-    const current = cloneSnapshot(nodes, edges, constraints);
+    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile);
     const past = [...historyPast];
     const prev = past.pop()!;
     set({
@@ -224,9 +313,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   redo: () => {
-    const { historyFuture, historyPast, nodes, edges, constraints } = get();
+    const { historyFuture, historyPast, nodes, edges, constraints, edgeProfile } = get();
     if (historyFuture.length === 0) return;
-    const current = cloneSnapshot(nodes, edges, constraints);
+    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile);
     const future = [...historyFuture];
     const next = future.shift()!;
     const past = [...historyPast, current];
@@ -240,23 +329,68 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     });
   },
 
-  setProfile: (name, sectionLabel) => {
-    const label = sectionLabel ?? name;
-    set({
-      profile: {
-        name,
-        sectionLabel: label,
-        sectionSizeMm: parseSectionSizeMm(label, 20),
-      },
+  getEdgeProfileId: (edgeId) => {
+    const { edgeProfile, profiles } = get();
+    return edgeProfile[edgeId] ?? profiles[0].id;
+  },
+  getEdgeProfile: (edgeId) => {
+    const { profiles } = get();
+    const id = get().getEdgeProfileId(edgeId);
+    return profiles.find((p) => p.id === id) ?? profiles[0];
+  },
+  addProfile: () =>
+    set((s) => {
+      const profile = makeProfile(`Profile ${s.profiles.length + 1}`, 20);
+      return {
+        profiles: [...s.profiles, profile],
+        stockByProfile: {
+          ...s.stockByProfile,
+          [profile.id]: defaultStockBars(),
+        },
+      };
+    }),
+  removeProfile: (id) => {
+    if (get().profiles.length <= 1) return;
+    get().pushHistory();
+    set((s) => {
+      const profiles = s.profiles.filter((p) => p.id !== id);
+      const fallbackId = profiles[0].id;
+      // Reassign that profile's edges to the fallback; drop its stock.
+      const edgeProfile = { ...s.edgeProfile };
+      for (const [edgeId, pid] of Object.entries(edgeProfile)) {
+        if (pid === id) edgeProfile[edgeId] = fallbackId;
+      }
+      const stockByProfile = { ...s.stockByProfile };
+      delete stockByProfile[id];
+      return { profiles, edgeProfile, stockByProfile, cuttingResult: null };
     });
   },
-  setSectionSizeMm: (size) =>
+  updateProfile: (id, patch) =>
     set((s) => ({
-      profile: {
-        ...s.profile,
-        sectionSizeMm: Math.max(1, Math.min(10000, size)),
-      },
+      profiles: s.profiles.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              name: patch.name ?? p.name,
+              sectionMm:
+                patch.sectionMm !== undefined
+                  ? clampSection(patch.sectionMm)
+                  : p.sectionMm,
+            }
+          : p,
+      ),
+      cuttingResult: null,
     })),
+  assignSelectedToProfile: (profileId) => {
+    const ids = getActiveEdgeIds(get().selection, get().selectedEdgeIds);
+    if (ids.length === 0) return;
+    get().pushHistory();
+    set((s) => {
+      const edgeProfile = { ...s.edgeProfile };
+      for (const id of ids) edgeProfile[id] = profileId;
+      return { edgeProfile, cuttingResult: null };
+    });
+  },
   setSnap: (snap) => set({ snap }),
   setGridCellSize: (size) =>
     set({ gridCellSize: Math.max(0.1, Math.min(10000, size)) }),
@@ -361,17 +495,29 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     );
     if (!result) return;
     get().pushHistory();
-    set((s) => ({
-      nodes: [...s.nodes, ...result.nodes],
-      edges: [...s.edges, ...result.edges],
-      constraints: [...s.constraints, ...result.constraints],
-      selectedEdgeIds: result.newEdgeIds,
-      selection:
-        result.newEdgeIds.length > 0
-          ? { type: 'edge', id: result.newEdgeIds[result.newEdgeIds.length - 1] }
-          : null,
-      cuttingResult: null,
-    }));
+    // Carry each source edge's profile onto its duplicate. duplicateEdges keeps
+    // the original `edges` array order, so source[i] ↔ result.newEdgeIds[i].
+    const idSet = new Set(edgeIds);
+    const sourceEdges = edges.filter((e) => idSet.has(e.id));
+    set((s) => {
+      const edgeProfile = { ...s.edgeProfile };
+      sourceEdges.forEach((src, i) => {
+        const assigned = s.edgeProfile[src.id];
+        if (assigned) edgeProfile[result.newEdgeIds[i]] = assigned;
+      });
+      return {
+        nodes: [...s.nodes, ...result.nodes],
+        edges: [...s.edges, ...result.edges],
+        constraints: [...s.constraints, ...result.constraints],
+        edgeProfile,
+        selectedEdgeIds: result.newEdgeIds,
+        selection:
+          result.newEdgeIds.length > 0
+            ? { type: 'edge', id: result.newEdgeIds[result.newEdgeIds.length - 1] }
+            : null,
+        cuttingResult: null,
+      };
+    });
   },
   getActiveEdgeIds: () =>
     getActiveEdgeIds(get().selection, get().selectedEdgeIds),
@@ -463,17 +609,27 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       type: c.type,
     }));
     const newEdgeIds = newEdges.map((e) => e.id);
-    set((s) => ({
-      nodes: [...s.nodes, ...newNodes],
-      edges: [...s.edges, ...newEdges],
-      constraints: [...s.constraints, ...newConstraints],
-      selectedEdgeIds: newEdgeIds,
-      selection:
-        newEdgeIds.length > 0
-          ? { type: 'edge', id: newEdgeIds[newEdgeIds.length - 1] }
-          : null,
-      cuttingResult: null,
-    }));
+    set((s) => {
+      // Best-effort: carry the source edge's profile (if it still exists) onto
+      // the paste. Falls back to the default profile when unknown.
+      const edgeProfile = { ...s.edgeProfile };
+      clipboard.edges.forEach((src, i) => {
+        const assigned = s.edgeProfile[src.id];
+        if (assigned) edgeProfile[newEdges[i].id] = assigned;
+      });
+      return {
+        nodes: [...s.nodes, ...newNodes],
+        edges: [...s.edges, ...newEdges],
+        constraints: [...s.constraints, ...newConstraints],
+        edgeProfile,
+        selectedEdgeIds: newEdgeIds,
+        selection:
+          newEdgeIds.length > 0
+            ? { type: 'edge', id: newEdgeIds[newEdgeIds.length - 1] }
+            : null,
+        cuttingResult: null,
+      };
+    });
   },
   applyConstraintParallelToPair: () => {
     const pair = get().getConstraintPair();
@@ -678,24 +834,38 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     }));
   },
 
-  addStockRow: () =>
+  addStockRow: (profileId) =>
     set((s) => ({
-      stock: [...s.stock, { id: uuid(), length: 1000, quantity: 1 }],
+      stockByProfile: {
+        ...s.stockByProfile,
+        [profileId]: [
+          ...(s.stockByProfile[profileId] ?? []),
+          { id: uuid(), length: 1000, quantity: 1 },
+        ],
+      },
     })),
 
-  updateStock: (id, length, quantity) =>
+  updateStock: (profileId, rowId, length, quantity) =>
     set((s) => ({
-      stock: s.stock.map((b) =>
-        b.id === id
-          ? { ...b, length: Math.max(1, length), quantity: Math.max(0, quantity) }
-          : b,
-      ),
+      stockByProfile: {
+        ...s.stockByProfile,
+        [profileId]: (s.stockByProfile[profileId] ?? []).map((b) =>
+          b.id === rowId
+            ? { ...b, length: Math.max(1, length), quantity: Math.max(0, quantity) }
+            : b,
+        ),
+      },
       cuttingResult: null,
     })),
 
-  removeStock: (id) =>
+  removeStock: (profileId, rowId) =>
     set((s) => ({
-      stock: s.stock.filter((b) => b.id !== id),
+      stockByProfile: {
+        ...s.stockByProfile,
+        [profileId]: (s.stockByProfile[profileId] ?? []).filter(
+          (b) => b.id !== rowId,
+        ),
+      },
       cuttingResult: null,
     })),
 
@@ -706,6 +876,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       nodes,
       edges,
       constraints: [],
+      edgeProfile: {},
       selection: null,
       selectedEdgeIds: [],
       connectFromId: null,
@@ -716,29 +887,69 @@ export const useStructureStore = create<StructureState>((set, get) => ({
 
   importStructure: ({ nodes, edges, stock, kerf, profile }) => {
     get().pushHistory();
-    set((s) => ({
-      nodes,
-      edges,
-      constraints: [],
-      stock: stock && stock.length > 0 ? stock : s.stock,
-      kerf: kerf ?? s.kerf,
-      profile: profile ?? s.profile,
-      selection: null,
-      selectedEdgeIds: [],
-      connectFromId: null,
-      secondEdgeId: null,
-      secondNodeId: null,
-      cuttingResult: null,
-    }));
+    set((s) => {
+      // Express hands off a single profile → one Advanced profile carrying it.
+      const slice: MultiProfileSlice = profile
+        ? (() => {
+            const section = profile.sectionSizeMm ?? 40;
+            const p = makeProfile(profile.name, section);
+            return {
+              profiles: [p],
+              edgeProfile: {},
+              stockByProfile: {
+                [p.id]: stock && stock.length > 0 ? stock : defaultStockBars(),
+              },
+            };
+          })()
+        : {
+            profiles: s.profiles,
+            edgeProfile: {},
+            stockByProfile: s.stockByProfile,
+          };
+      return {
+        nodes,
+        edges,
+        constraints: [],
+        ...slice,
+        kerf: kerf ?? s.kerf,
+        selection: null,
+        selectedEdgeIds: [],
+        connectFromId: null,
+        secondEdgeId: null,
+        secondNodeId: null,
+        cuttingResult: null,
+      };
+    });
   },
 
   optimize: () => {
-    const { nodes, edges, stock, kerf } = get();
-    const pieces = extractCutList(edges, (fromId, toId) =>
-      edgeLength(nodes, fromId, toId),
-    );
-    const result = solveCuttingStock(pieces, stock, kerf);
-    set({ cuttingResult: result });
+    const { nodes, edges, profiles, edgeProfile, stockByProfile, kerf } = get();
+    const fallbackId = profiles[0].id;
+    // Group edges by their assigned profile, preserving member numbering (M<i>)
+    // across the whole structure so labels stay stable.
+    const piecesByProfile = new Map<string, CutPiece[]>();
+    edges.forEach((e, i) => {
+      const pid = edgeProfile[e.id] ?? fallbackId;
+      const list = piecesByProfile.get(pid) ?? [];
+      list.push({
+        edgeId: e.id,
+        length: roundLength(edgeLength(nodes, e.fromId, e.toId)),
+        label: `M${i + 1}`,
+      });
+      piecesByProfile.set(pid, list);
+    });
+
+    const groups: ProfileCutGroup[] = profiles
+      .filter((p) => (piecesByProfile.get(p.id)?.length ?? 0) > 0)
+      .map((p) => ({
+        profileId: p.id,
+        profileName: p.name,
+        sectionMm: p.sectionMm,
+        pieces: piecesByProfile.get(p.id) ?? [],
+        stock: stockByProfile[p.id] ?? [],
+      }));
+
+    set({ cuttingResult: solveCuttingStockByProfile(groups, kerf) });
   },
 
   clearCuttingResult: () => set({ cuttingResult: null }),
@@ -748,8 +959,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       nodes,
       edges,
       constraints,
-      profile,
-      stock,
+      profiles,
+      edgeProfile,
+      stockByProfile,
       kerf,
       snap,
       workPlane,
@@ -763,8 +975,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         nodes,
         edges,
         constraints,
-        profile,
-        stock,
+        profiles,
+        edgeProfile,
+        stockByProfile,
         kerf,
         snap,
         workPlane,
@@ -784,13 +997,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         nodes: data.nodes ?? [],
         edges: data.edges ?? [],
         constraints: data.constraints ?? [],
-        profile: {
-          ...(data.profile ?? { name: '20×20', sectionLabel: '20×20 mm' }),
-          sectionSizeMm:
-            data.profile?.sectionSizeMm ??
-            parseSectionSizeMm(data.profile?.sectionLabel, 20),
-        },
-        stock: data.stock ?? defaultStock,
+        ...migrateProfileSlice(data),
         kerf: data.kerf ?? 0,
         snap: data.snap ?? 5,
         workPlane: data.workPlane ?? 'xz',
@@ -817,8 +1024,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       nodes,
       edges,
       constraints,
-      profile,
-      stock,
+      profiles,
+      edgeProfile,
+      stockByProfile,
       kerf,
       snap,
       gridCellSize,
@@ -826,12 +1034,17 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       workPlane,
       duplicateOffset,
     } = get();
+    const stockClone: Record<string, StockBar[]> = {};
+    for (const [pid, bars] of Object.entries(stockByProfile)) {
+      stockClone[pid] = bars.map((b) => ({ ...b }));
+    }
     return {
       nodes: nodes.map((n) => ({ ...n, position: [...n.position] as Vec3 })),
       edges: edges.map((e) => ({ ...e })),
       constraints: constraints.map((c) => ({ ...c })),
-      profile: { ...profile },
-      stock: stock.map((s) => ({ ...s })),
+      profiles: profiles.map((p) => ({ ...p })),
+      edgeProfile: { ...edgeProfile },
+      stockByProfile: stockClone,
       kerf,
       snap,
       gridCellSize,
@@ -846,13 +1059,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       nodes: payload.nodes ?? [],
       edges: payload.edges ?? [],
       constraints: payload.constraints ?? [],
-      profile: {
-        ...(payload.profile ?? { name: '20×20', sectionLabel: '20×20 mm' }),
-        sectionSizeMm:
-          payload.profile?.sectionSizeMm ??
-          parseSectionSizeMm(payload.profile?.sectionLabel, 20),
-      },
-      stock: payload.stock?.length ? payload.stock : defaultStock,
+      ...migrateProfileSlice(payload),
       kerf: payload.kerf ?? 0,
       snap: payload.snap ?? 5,
       gridCellSize: payload.gridCellSize ?? 5,
@@ -874,10 +1081,18 @@ export const useStructureStore = create<StructureState>((set, get) => ({
 
   exportCutList: () => {
     const { cuttingResult } = get();
-    if (!cuttingResult) {
-      get().optimize();
-      return formatCutList(get().cuttingResult!);
+    const result = cuttingResult ?? (get().optimize(), get().cuttingResult);
+    if (!result || result.byProfile.length === 0) {
+      return 'CUT LIST — Aluminium Profile Builder\n\n(no members to cut)';
     }
-    return formatCutList(cuttingResult);
+    // One formatted block per profile; multi-profile shows a section heading.
+    const multi = result.byProfile.length > 1;
+    const blocks = result.byProfile.map((p) => {
+      const heading = multi
+        ? `=== ${p.profileName} (${p.sectionMm}×${p.sectionMm} mm) ===\n`
+        : '';
+      return heading + formatCutList(p.result);
+    });
+    return blocks.join('\n\n');
   },
 }));

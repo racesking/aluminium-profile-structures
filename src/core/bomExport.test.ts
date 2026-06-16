@@ -3,7 +3,7 @@ import { bomToCsv, structureToExportInput } from './bomExport';
 import { solveCuttingStockByProfile } from './cuttingStock';
 import type { CutMember } from './joints';
 import type { ProfileDef } from './profiles';
-import type { Edge, Node, Profile, StockBar } from './types';
+import type { Edge, Node, StockBar } from './types';
 
 const profile: ProfileDef = { id: 'a', name: '40x40', sectionMm: 40 };
 
@@ -69,32 +69,86 @@ describe('structureToExportInput (Advanced builder)', () => {
     { id: 'e3', fromId: 'b', toId: 'c' }, // 500
     { id: 'e4', fromId: 'd', toId: 'a' }, // 500
   ];
-  const profile: Profile = { name: '40×40', sectionSizeMm: 40 };
-  const stock: StockBar[] = [{ id: 's', length: 6000, quantity: 4 }];
 
-  const input = structureToExportInput({
-    nodes,
-    edges,
-    profile,
-    stock,
-    kerf: 0,
-    units: 'mm',
-    projectName: 'T',
-    dateStr: '2026-01-01',
+  describe('single profile', () => {
+    const prof: ProfileDef = { id: 'p1', name: '40×40', sectionMm: 40 };
+    const stock: StockBar[] = [{ id: 's', length: 6000, quantity: 4 }];
+
+    const input = structureToExportInput({
+      nodes,
+      edges,
+      profiles: [prof],
+      edgeProfileId: () => prof.id,
+      stockByProfile: { [prof.id]: stock },
+      kerf: 0,
+      units: 'mm',
+      projectName: 'T',
+      dateStr: '2026-01-01',
+    });
+
+    it('groups members by length into lettered parts', () => {
+      expect(input.cutMembers).toHaveLength(4);
+      const roles = [...new Set(input.cutMembers.map((m) => m.role))].sort();
+      expect(roles).toEqual(['Part A', 'Part B']);
+    });
+
+    it('assigns the longest length to Part A', () => {
+      expect(input.cutMembers.find((m) => m.role === 'Part A')?.length).toBe(1000);
+    });
+
+    it('builds a single-profile cutting result', () => {
+      expect(input.multi.byProfile).toHaveLength(1);
+      expect(input.multi.byProfile[0].profileName).toBe('40×40');
+      expect(input.multi.anyUnplaced).toBe(false);
+    });
+
+    it('resolves every part to its profile', () => {
+      for (const m of input.cutMembers) {
+        expect(input.profileOf(m.role).id).toBe(prof.id);
+      }
+    });
   });
 
-  it('groups members by length into lettered parts', () => {
-    expect(input.cutMembers).toHaveLength(4);
-    const roles = [...new Set(input.cutMembers.map((m) => m.role))].sort();
-    expect(roles).toEqual(['Part A', 'Part B']);
-  });
+  describe('multiple profiles', () => {
+    const p1: ProfileDef = { id: 'p1', name: '40×40', sectionMm: 40 };
+    const p2: ProfileDef = { id: 'p2', name: '20×20', sectionMm: 20 };
+    // Horizontals (1000 mm) on p1, verticals (500 mm) on p2.
+    const edgeProfileId = (id: string) => (id === 'e1' || id === 'e2' ? 'p1' : 'p2');
 
-  it('assigns the longest length to Part A', () => {
-    expect(input.cutMembers.find((m) => m.role === 'Part A')?.length).toBe(1000);
-  });
+    const input = structureToExportInput({
+      nodes,
+      edges,
+      profiles: [p1, p2],
+      edgeProfileId,
+      stockByProfile: {
+        p1: [{ id: 's1', length: 6000, quantity: 4 }],
+        p2: [{ id: 's2', length: 6000, quantity: 4 }],
+      },
+      kerf: 0,
+      units: 'mm',
+      projectName: 'T',
+      dateStr: '2026-01-01',
+    });
 
-  it('builds a single-profile cutting result', () => {
-    expect(input.multi.byProfile).toHaveLength(1);
-    expect(input.multi.byProfile[0].profileName).toBe('40×40');
+    it('cuts each profile from its own stock', () => {
+      expect(input.multi.byProfile).toHaveLength(2);
+      const names = input.multi.byProfile.map((g) => g.profileName).sort();
+      expect(names).toEqual(['20×20', '40×40']);
+    });
+
+    it('gives each profile its own lettered parts', () => {
+      const roles = [...new Set(input.cutMembers.map((m) => m.role))].sort();
+      expect(roles).toEqual(['Part A', 'Part B']);
+      // Part A is the longest of the first profile (1000 on p1).
+      expect(input.profileOf('Part A').id).toBe('p1');
+      expect(input.profileOf('Part B').id).toBe('p2');
+    });
+
+    it('maps each member to the profile of its edge', () => {
+      const e1 = input.cutMembers.find((m) => m.id === 'e1')!;
+      const e3 = input.cutMembers.find((m) => m.id === 'e3')!;
+      expect(input.profileOf(e1.role).sectionMm).toBe(40);
+      expect(input.profileOf(e3.role).sectionMm).toBe(20);
+    });
   });
 });

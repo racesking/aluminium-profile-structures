@@ -66,12 +66,14 @@ export function Toolbar() {
   };
 
   const handleDrawing = () => {
-    const { nodes, edges, profile, stock, kerf } = useStructureStore.getState();
+    const state = useStructureStore.getState();
+    const { nodes, edges, profiles, stockByProfile, kerf } = state;
     const input = structureToExportInput({
       nodes,
       edges,
-      profile,
-      stock,
+      profiles,
+      edgeProfileId: (id) => state.getEdgeProfileId(id),
+      stockByProfile,
       kerf,
       units,
       projectName: 'Structure',

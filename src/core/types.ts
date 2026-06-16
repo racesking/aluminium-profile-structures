@@ -80,15 +80,5 @@ export type HistorySnapshot = {
   nodes: Node[];
   edges: Edge[];
   constraints: EdgeConstraint[];
-};
-
-export type ProjectState = {
-  nodes: Node[];
-  edges: Edge[];
-  constraints: EdgeConstraint[];
-  profile: Profile;
-  stock: StockBar[];
-  kerf: number;
-  snap: number;
-  workPlane: WorkPlane;
+  edgeProfile: Record<string, string>;
 };
