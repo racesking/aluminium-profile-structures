@@ -222,7 +222,7 @@ export function Toolbar() {
 
           <span className="toolbar-group-label">Grid</span>
           <label className="toolbar-field">
-            Grid mm
+            mm
             <input
               type="number"
               min={0.1}

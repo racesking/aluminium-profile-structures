@@ -192,7 +192,7 @@ label {
   background: var(--surface-elevated);
   border: 1px solid var(--border);
   border-radius: 7px;
-  padding: 3px;
+  padding: 2px 3px;
 }
 
 .toolbar-group button {
@@ -248,6 +248,27 @@ label {
   padding: 4px 6px;
   font-family: var(--mono);
   font-size: 11px;
+}
+
+/* Uniform control height so every toolbar item lines up cleanly. */
+.toolbar-row > button,
+.toolbar-field,
+.toolbar-field input {
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.toolbar-field {
+  align-self: center;
+}
+
+.toolbar-group {
+  align-self: center;
+}
+
+.toolbar-group button {
+  height: 24px;
+  box-sizing: border-box;
 }
 
 .main {
