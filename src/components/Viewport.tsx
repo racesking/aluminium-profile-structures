@@ -4,6 +4,8 @@ import { useRef, useEffect, useState } from 'react';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { formatLength } from '../core/units';
 import {
   cameraDistanceForSpan,
   getStructureBounds,
@@ -121,6 +123,7 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   const snapToGrid = useStructureStore((s) => s.snapToGrid);
   const gridCellSize = useStructureStore((s) => s.gridCellSize);
   const nodes = useStructureStore((s) => s.nodes);
+  const units = useSettingsStore((s) => s.units);
   const { span } = getStructureBounds(nodes);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
@@ -229,7 +232,9 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   const planeHint =
     workPlane === 'free' ? '3D space' : `${workPlane.toUpperCase()} plane`;
   const lockHint = axisLock ? ` · lock ${axisLock.toUpperCase()}` : '';
-  const snapHint = snapToGrid ? ` · grid ${gridCellSize}mm` : ' · snap off';
+  const snapHint = snapToGrid
+    ? ` · grid ${formatLength(gridCellSize, units)}`
+    : ' · snap off';
 
   const modeLabel =
     toolMode === 'placeNode'

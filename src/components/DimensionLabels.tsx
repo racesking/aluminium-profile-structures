@@ -1,8 +1,11 @@
 import { Html } from '@react-three/drei';
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { formatLength } from '../core/units';
 import { edgeLength, midpoint, roundLength } from '../core/geometry';
 
 export function DimensionLabels() {
+  const units = useSettingsStore((s) => s.units);
   const nodes = useStructureStore((s) => s.nodes);
   const edges = useStructureStore((s) => s.edges);
   const selection = useStructureStore((s) => s.selection);
@@ -27,7 +30,7 @@ export function DimensionLabels() {
                 fontWeight: isSelected ? 600 : 400,
               }}
             >
-              {len} mm
+              {formatLength(len, units)}
             </div>
           </Html>
         );

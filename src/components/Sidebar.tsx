@@ -1,4 +1,6 @@
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
 import {
   constraintLabel,
   constraintLabelPerp,
@@ -7,6 +9,7 @@ import { getConstraintEdgePair } from '../core/selection';
 import { DuplicatePanel } from './DuplicatePanel';
 
 export function Sidebar() {
+  const units = useSettingsStore((s) => s.units);
   const nodes = useStructureStore((s) => s.nodes);
   const edges = useStructureStore((s) => s.edges);
   const constraints = useStructureStore((s) => s.constraints);
@@ -75,16 +78,16 @@ export function Sidebar() {
           <div className="section">
             <p className="section-title">Selected member</p>
             <div className="field">
-              <label>Length (mm)</label>
+              <label>Length ({units})</label>
               <input
                 type="number"
-                min={1}
-                step={0.1}
-                value={edgeLen}
+                min={0}
+                step={unitInputStep(units)}
+                value={toDisplay(edgeLen, units)}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
                   if (!isNaN(v) && v > 0) {
-                    setEdgeLengthById(selectedEdge.id, v);
+                    setEdgeLengthById(selectedEdge.id, fromDisplay(v, units));
                   }
                 }}
               />
@@ -110,7 +113,7 @@ export function Sidebar() {
                   .filter((e) => e.id !== primaryEdgeId)
                   .map((e) => (
                     <option key={e.id} value={e.id}>
-                      M{edges.indexOf(e) + 1} — {getEdgeLength(e.id)} mm
+                      M{edges.indexOf(e) + 1} — {formatLength(getEdgeLength(e.id), units)}
                     </option>
                   ))}
               </select>
@@ -171,7 +174,7 @@ export function Sidebar() {
                   .filter((n) => n.id !== selection.id)
                   .map((n) => (
                     <option key={n.id} value={n.id}>
-                      ({n.position.map((v) => Math.round(v)).join(', ')})
+                      ({n.position.map((v) => toDisplay(v, units)).join(', ')})
                     </option>
                   ))}
               </select>
@@ -179,7 +182,7 @@ export function Sidebar() {
             {pairDist != null && (
               <div className="stat-card" style={{ marginTop: 8 }}>
                 <strong>Distance</strong>
-                <span>{pairDist} mm</span>
+                <span>{formatLength(pairDist, units)}</span>
               </div>
             )}
           </div>
@@ -203,7 +206,7 @@ export function Sidebar() {
                   }`}
                   onClick={() => setSelection({ type: 'edge', id: e.id })}
                 >
-                  M{i + 1} · {getEdgeLength(e.id)} mm
+                  M{i + 1} · {formatLength(getEdgeLength(e.id), units)}
                 </div>
               ))
             )}
@@ -224,7 +227,7 @@ export function Sidebar() {
                   }`}
                   onClick={() => setSelection({ type: 'node', id: n.id })}
                 >
-                  {n.position.map((v) => Math.round(v)).join(', ')}
+                  {n.position.map((v) => toDisplay(v, units)).join(', ')}
                 </div>
               ))}
             </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { toDisplay, fromDisplay, unitInputStep } from '../core/units';
 import { openProjectAndRoute, saveStructureProject } from '../store/projectIO';
 import { bomToPrintHtml, structureToExportInput } from '../core/bomExport';
 import { WORK_PLANE_LABELS } from '../core/workPlane';
@@ -222,15 +223,15 @@ export function Toolbar() {
 
           <span className="toolbar-group-label">Grid</span>
           <label className="toolbar-field">
-            mm
+            {units}
             <input
               type="number"
-              min={0.1}
+              min={0}
               max={10000}
-              step={1}
-              value={gridCellSize}
+              step={unitInputStep(units)}
+              value={toDisplay(gridCellSize, units)}
               onChange={(e) =>
-                setGridCellSize(parseFloat(e.target.value) || 1)
+                setGridCellSize(fromDisplay(parseFloat(e.target.value) || 0, units) || 1)
               }
             />
           </label>

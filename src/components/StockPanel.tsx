@@ -1,4 +1,6 @@
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
 import { profileColorAt } from '../core/profiles';
 import type { ProfileDef } from '../core/profiles';
 import type { StockBar } from '../core/types';
@@ -14,6 +16,7 @@ function ProfileStockBlock({
   showHeader: boolean;
   color: string;
 }) {
+  const units = useSettingsStore((s) => s.units);
   const addStockRow = useStructureStore((s) => s.addStockRow);
   const updateStock = useStructureStore((s) => s.updateStock);
   const removeStock = useStructureStore((s) => s.removeStock);
@@ -30,17 +33,18 @@ function ProfileStockBlock({
         <div key={bar.id} className="stock-row">
           <input
             type="number"
-            min={1}
-            value={bar.length}
+            min={0}
+            step={unitInputStep(units)}
+            value={toDisplay(bar.length, units)}
             onChange={(e) =>
               updateStock(
                 profile.id,
                 bar.id,
-                parseFloat(e.target.value) || 1,
+                fromDisplay(parseFloat(e.target.value) || 0, units),
                 bar.quantity,
               )
             }
-            title="Length mm"
+            title={`Length (${units})`}
           />
           <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>×</span>
           <input
@@ -79,6 +83,7 @@ function ProfileStockBlock({
 }
 
 export function StockPanel() {
+  const units = useSettingsStore((s) => s.units);
   const profiles = useStructureStore((s) => s.profiles);
   const edges = useStructureStore((s) => s.edges);
   const edgeProfile = useStructureStore((s) => s.edgeProfile);
@@ -206,7 +211,7 @@ export function StockPanel() {
           </div>
           <div className="stat-card">
             <strong>Total length</strong>
-            <span>{Math.round(totalCuts * 10) / 10} mm</span>
+            <span>{formatLength(totalCuts, units)}</span>
           </div>
         </div>
 
@@ -254,27 +259,29 @@ export function StockPanel() {
                   {r.bars.map((bar) => (
                     <div key={bar.barIndex} className="cut-bar">
                       <div>
-                        <strong>Bar {bar.barIndex}</strong> · {bar.stockLength}{' '}
-                        mm
+                        <strong>Bar {bar.barIndex}</strong> ·{' '}
+                        {formatLength(bar.stockLength, units)}
                       </div>
                       {bar.cuts.map((c, i) => (
                         <span key={i}>
                           {i > 0 ? ' + ' : ''}
-                          {c.length}
+                          {formatLength(c.length, units)}
                           {c.label ? ` (${c.label})` : ''}
                         </span>
                       ))}
-                      <div className="waste">Waste {bar.waste} mm</div>
+                      <div className="waste">
+                        Waste {formatLength(bar.waste, units)}
+                      </div>
                     </div>
                   ))}
                   {r.unplaced.length > 0 ? (
                     <div className="shortage">
-                      Need {r.shortageMm} mm more.
+                      Need {formatLength(r.shortageMm, units)} more.
                       {r.suggestedBars && (
                         <>
                           <br />
-                          Buy {r.suggestedBars.quantity}× {r.suggestedBars.length}{' '}
-                          mm
+                          Buy {r.suggestedBars.quantity}×{' '}
+                          {formatLength(r.suggestedBars.length, units)}
                         </>
                       )}
                     </div>
@@ -287,7 +294,8 @@ export function StockPanel() {
             <div className="stat-card" style={{ marginTop: 8 }}>
               <strong>Waste total</strong>
               <span>
-                {cuttingResult.totalWaste} mm ({cuttingResult.wastePercent}%)
+                {formatLength(cuttingResult.totalWaste, units)} (
+                {cuttingResult.wastePercent}%)
               </span>
             </div>
             <p className="hint hint-compact">
@@ -296,7 +304,8 @@ export function StockPanel() {
                 0,
               )}{' '}
               members · {cuttingResult.totalBars} bar
-              {cuttingResult.totalBars === 1 ? '' : 's'} · {cuttingResult.totalCutLength} mm cut
+              {cuttingResult.totalBars === 1 ? '' : 's'} ·{' '}
+              {formatLength(cuttingResult.totalCutLength, units)} cut
             </p>
           </div>
         )}

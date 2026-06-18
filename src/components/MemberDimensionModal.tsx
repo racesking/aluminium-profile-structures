@@ -1,4 +1,6 @@
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { toDisplay, fromDisplay, unitInputStep } from '../core/units';
 
 type Props = {
   open: boolean;
@@ -6,6 +8,7 @@ type Props = {
 };
 
 export function MemberDimensionModal({ open, onClose }: Props) {
+  const units = useSettingsStore((s) => s.units);
   const edgeId = useStructureStore((s) =>
     s.selection?.type === 'edge'
       ? s.selection.id
@@ -25,16 +28,16 @@ export function MemberDimensionModal({ open, onClose }: Props) {
         <h2>Member dimension</h2>
         {edge ? (
           <div className="field">
-            <label>Length (mm)</label>
+            <label>Length ({units})</label>
             <input
               type="number"
-              min={0.1}
-              step={0.1}
+              min={0}
+              step={unitInputStep(units)}
               autoFocus
-              value={len}
+              value={toDisplay(len, units)}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
-                if (!isNaN(v) && v > 0) setEdgeLengthById(edge.id, v);
+                if (!isNaN(v) && v > 0) setEdgeLengthById(edge.id, fromDisplay(v, units));
               }}
             />
           </div>

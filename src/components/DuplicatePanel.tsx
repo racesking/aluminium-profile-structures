@@ -1,6 +1,9 @@
 import { useStructureStore } from '../store/structureStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { toDisplay, fromDisplay, unitInputStep } from '../core/units';
 
 export function DuplicatePanel() {
+  const units = useSettingsStore((s) => s.units);
   const activeCount = useStructureStore(
     (s) =>
       s.selectedEdgeIds.length ||
@@ -26,14 +29,14 @@ export function DuplicatePanel() {
       </button>
       <div className="field-row">
         <div className="field">
-          <label>ΔX</label>
+          <label>ΔX ({units})</label>
           <input
             type="number"
-            step={1}
-            value={duplicateOffset[0]}
+            step={unitInputStep(units)}
+            value={toDisplay(duplicateOffset[0], units)}
             onChange={(e) =>
               setDuplicateOffset([
-                parseFloat(e.target.value) || 0,
+                fromDisplay(parseFloat(e.target.value) || 0, units),
                 duplicateOffset[1],
                 duplicateOffset[2],
               ])
@@ -41,31 +44,31 @@ export function DuplicatePanel() {
           />
         </div>
         <div className="field">
-          <label>ΔY</label>
+          <label>ΔY ({units})</label>
           <input
             type="number"
-            step={1}
-            value={duplicateOffset[1]}
+            step={unitInputStep(units)}
+            value={toDisplay(duplicateOffset[1], units)}
             onChange={(e) =>
               setDuplicateOffset([
                 duplicateOffset[0],
-                parseFloat(e.target.value) || 0,
+                fromDisplay(parseFloat(e.target.value) || 0, units),
                 duplicateOffset[2],
               ])
             }
           />
         </div>
         <div className="field">
-          <label>ΔZ</label>
+          <label>ΔZ ({units})</label>
           <input
             type="number"
-            step={1}
-            value={duplicateOffset[2]}
+            step={unitInputStep(units)}
+            value={toDisplay(duplicateOffset[2], units)}
             onChange={(e) =>
               setDuplicateOffset([
                 duplicateOffset[0],
                 duplicateOffset[1],
-                parseFloat(e.target.value) || 0,
+                fromDisplay(parseFloat(e.target.value) || 0, units),
               ])
             }
           />
