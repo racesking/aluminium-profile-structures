@@ -232,27 +232,38 @@ label {
   flex-shrink: 0;
 }
 
+/* Grid field styled as a pill so it matches the button clusters. */
 .toolbar-field {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  height: 30px;
+  padding: 0 8px 0 11px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 7px;
   font-family: var(--mono);
   font-size: 10px;
+  line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .toolbar-field input {
-  width: 56px;
-  padding: 4px 6px;
+  width: 46px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 6px;
   font-family: var(--mono);
   font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
 
 /* Uniform control height so every toolbar item lines up cleanly. */
-.toolbar-row > button,
-.toolbar-field input {
+.toolbar-row > button {
   height: 30px;
   box-sizing: border-box;
 }
@@ -261,11 +272,6 @@ label {
 .toolbar-row > * {
   align-self: center;
   margin: 0;
-}
-
-.toolbar-field {
-  height: 30px;
-  line-height: 1;
 }
 
 .toolbar-group button {

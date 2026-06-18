@@ -214,11 +214,11 @@ export function Toolbar() {
 
         <div className="toolbar-row secondary">
           <span className="toolbar-group-label">Create</span>
-          <button type="button" onClick={() => setBoxOpen(true)}>
-            Box frame
-          </button>
-
-          <span className="toolbar-sep" />
+          <div className="toolbar-group">
+            <button type="button" onClick={() => setBoxOpen(true)}>
+              Box frame
+            </button>
+          </div>
 
           <span className="toolbar-group-label">Grid</span>
           <label className="toolbar-field">
@@ -234,15 +234,15 @@ export function Toolbar() {
               }
             />
           </label>
-          <button
-            type="button"
-            className={snapToGrid ? 'active' : ''}
-            onClick={() => setSnapToGrid(!snapToGrid)}
-          >
-            Snap
-          </button>
-
-          <span className="toolbar-sep" />
+          <div className="toolbar-group">
+            <button
+              type="button"
+              className={snapToGrid ? 'active' : ''}
+              onClick={() => setSnapToGrid(!snapToGrid)}
+            >
+              Snap
+            </button>
+          </div>
 
           <span className="toolbar-group-label">View</span>
           <div className="toolbar-group">
