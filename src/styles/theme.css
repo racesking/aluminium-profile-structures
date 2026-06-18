@@ -386,24 +386,6 @@ label {
   right: calc(var(--panel-w-right) - 4px);
 }
 
-.panel-resizer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: var(--border);
-  transition: background var(--transition), width var(--transition);
-}
-
-.panel-resizer:hover::after,
-.panel-resizer.dragging::after {
-  background: var(--accent);
-  width: 3px;
-}
-
 /* Always-visible grip so it's obvious the panel edge can be dragged. */
 .panel-resizer-grip {
   position: absolute;
