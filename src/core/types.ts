@@ -61,7 +61,7 @@ export type Selection =
 
 export type ViewPreset = 'perspective' | 'top' | 'front' | 'right';
 
-export type ToolMode = 'select' | 'placeNode' | 'connect';
+export type ToolMode = 'select' | 'box' | 'placeNode' | 'connect';
 
 export type WorkPlane = 'xz' | 'xy' | 'yz' | 'free';
 

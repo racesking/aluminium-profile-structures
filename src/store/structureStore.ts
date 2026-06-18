@@ -119,6 +119,8 @@ type StructureState = {
   setViewPreset: (preset: ViewPreset) => void;
   setSelection: (sel: Selection) => void;
   setEdgeSelection: (edgeId: string, shiftKey: boolean, altKey?: boolean) => void;
+  clearSelection: () => void;
+  selectEdges: (ids: string[], additive: boolean) => void;
   selectConnectedGroup: () => void;
   selectAllMembers: () => void;
   setDuplicateOffset: (offset: Vec3) => void;
@@ -457,6 +459,22 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       });
     }
   },
+  clearSelection: () =>
+    set({ selection: null, selectedEdgeIds: [], secondEdgeId: null }),
+  selectEdges: (ids, additive) =>
+    set((s) => {
+      const next = additive
+        ? Array.from(new Set([...s.selectedEdgeIds, ...ids]))
+        : ids;
+      return {
+        selectedEdgeIds: next,
+        selection: next.length
+          ? { type: 'edge', id: next[next.length - 1] }
+          : null,
+        secondEdgeId: null,
+        cuttingResult: null,
+      };
+    }),
   selectAllMembers: () => {
     const { edges } = get();
     if (edges.length === 0) return;

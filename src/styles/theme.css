@@ -624,6 +624,20 @@ body.resizing-col canvas {
   margin-top: 0;
 }
 
+.marquee {
+  position: absolute;
+  z-index: 9;
+  pointer-events: none;
+  border: 1px solid #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.marquee.crossing {
+  border-style: dashed;
+  border-color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+}
+
 .mode-badge {
   position: absolute;
   bottom: 14px;

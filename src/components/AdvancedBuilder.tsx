@@ -93,6 +93,9 @@ function KeyboardShortcuts() {
         case 'v':
           if (!e.ctrlKey && !e.metaKey) setToolMode('select');
           break;
+        case 'b':
+          if (!e.ctrlKey && !e.metaKey) setToolMode('box');
+          break;
         case 'n':
           setToolMode('placeNode');
           break;

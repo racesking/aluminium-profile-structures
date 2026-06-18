@@ -112,6 +112,14 @@ export function Toolbar() {
             </button>
             <button
               type="button"
+              className={toolMode === 'box' ? 'active' : ''}
+              onClick={() => setToolMode('box')}
+              title="Box select — drag a rectangle (B)"
+            >
+              Box
+            </button>
+            <button
+              type="button"
               className={toolMode === 'placeNode' ? 'active' : ''}
               onClick={() => setToolMode('placeNode')}
               title="Place node (N)"
