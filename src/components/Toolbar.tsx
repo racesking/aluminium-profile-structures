@@ -136,8 +136,6 @@ export function Toolbar() {
             </button>
           </div>
 
-          <span className="toolbar-sep" />
-
           <span className="toolbar-group-label">Plane</span>
           <div className="toolbar-group">
             {PLANES.map((p) => (
@@ -153,8 +151,7 @@ export function Toolbar() {
             ))}
           </div>
 
-          <span className="toolbar-sep" />
-
+          <span className="toolbar-group-label">Edit</span>
           <div className="toolbar-group">
             <button
               type="button"
@@ -176,6 +173,7 @@ export function Toolbar() {
 
           <div className="toolbar-spacer" />
 
+          <span className="toolbar-group-label">Project</span>
           <div className="toolbar-group">
             <button
               type="button"
@@ -215,12 +213,14 @@ export function Toolbar() {
         </div>
 
         <div className="toolbar-row secondary">
+          <span className="toolbar-group-label">Create</span>
           <button type="button" onClick={() => setBoxOpen(true)}>
             Box frame
           </button>
 
           <span className="toolbar-sep" />
 
+          <span className="toolbar-group-label">Grid</span>
           <label className="toolbar-field">
             Grid mm
             <input

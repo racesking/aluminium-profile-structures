@@ -45,6 +45,10 @@ export function PanelResizer({ side }: Props) {
       aria-orientation="vertical"
       aria-label={`Resize ${side} panel`}
       title="Drag to resize · double-click to reset"
-    />
+    >
+      <span className="panel-resizer-grip" aria-hidden>
+        ⋮
+      </span>
+    </div>
   );
 }

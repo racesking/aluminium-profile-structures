@@ -152,15 +152,16 @@ label {
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 8px;
+  row-gap: 8px;
+  padding: 10px 16px;
   min-height: 0;
   width: 100%;
   flex-wrap: wrap;
 }
 
 .toolbar-row.secondary {
-  padding-top: 0;
+  padding-top: 8px;
   padding-bottom: 10px;
   border-top: 1px solid var(--border-light);
   background: var(--surface-elevated);
@@ -182,11 +183,33 @@ label {
   min-width: 8px;
 }
 
+/* Each cluster of related buttons reads as one pill so groups are obvious. */
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: nowrap;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px;
+}
+
+.toolbar-group button {
+  border-color: transparent;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.toolbar-group button:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: transparent;
+}
+
+.toolbar-group button.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
 }
 
 .toolbar-group-label {
@@ -196,15 +219,16 @@ label {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-right: 4px;
-  padding: 0 2px;
+  margin-right: 5px;
+  margin-left: 6px;
+  padding: 0 1px;
 }
 
 .toolbar-sep {
   width: 1px;
-  height: 22px;
+  height: 26px;
   background: var(--border);
-  margin: 0 4px;
+  margin: 0 6px;
   flex-shrink: 0;
 }
 
@@ -339,6 +363,36 @@ label {
 .panel-resizer.dragging::after {
   background: var(--accent);
   width: 3px;
+}
+
+/* Always-visible grip so it's obvious the panel edge can be dragged. */
+.panel-resizer-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 38px;
+  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -1px;
+  transition: background var(--transition), border-color var(--transition),
+    color var(--transition);
+}
+
+.panel-resizer:hover .panel-resizer-grip,
+.panel-resizer.dragging .panel-resizer-grip {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
 }
 
 body.resizing-col {
