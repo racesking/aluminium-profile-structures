@@ -252,18 +252,20 @@ label {
 
 /* Uniform control height so every toolbar item lines up cleanly. */
 .toolbar-row > button,
-.toolbar-field,
 .toolbar-field input {
   height: 30px;
   box-sizing: border-box;
 }
 
-.toolbar-field {
+/* All direct toolbar-row items share one centred baseline. */
+.toolbar-row > * {
   align-self: center;
+  margin: 0;
 }
 
-.toolbar-group {
-  align-self: center;
+.toolbar-field {
+  height: 30px;
+  line-height: 1;
 }
 
 .toolbar-group button {
