@@ -1,5 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { useRef, useEffect, useState } from 'react';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -35,6 +36,17 @@ function CaptureView({ viewRef }: { viewRef: React.MutableRefObject<CapturedView
     viewRef.current = { camera, el: gl.domElement };
   }, [camera, gl, viewRef]);
   return null;
+}
+
+/**
+ * Generated-in-memory studio environment map so metallic profile materials get
+ * believable reflections. No network fetch — RoomEnvironment ships with three.
+ * Runs from Canvas onCreated (once per canvas), so no cleanup bookkeeping.
+ */
+function attachEnvironment(gl: THREE.WebGLRenderer, scene: THREE.Scene) {
+  const pmrem = new THREE.PMREMGenerator(gl);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 }
 
 function CameraController() {
@@ -269,13 +281,14 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
               far: Math.max(200000, span * 100),
             }}
             gl={{ antialias: true, alpha: false }}
-            onCreated={({ gl }) => {
+            onCreated={({ gl, scene }) => {
               gl.setClearColor('#f4f4f4');
+              attachEnvironment(gl, scene);
             }}
             onPointerMissed={handleMissed}
           >
-            <ambientLight intensity={0.85} />
-            <directionalLight position={[80, 120, 60]} intensity={0.6} />
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[80, 120, 60]} intensity={0.7} />
             <CaptureView viewRef={viewRef} />
             <SceneGrid />
             <StructureScene />

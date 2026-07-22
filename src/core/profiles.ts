@@ -1,11 +1,14 @@
 import { v4 as uuid } from 'uuid';
 import type { StockBar } from './types';
+import type { ProfileShape } from './profileShapes';
 
 /** A named extrusion profile with a square cross-section size in mm. */
 export type ProfileDef = {
   id: string;
   name: string;
   sectionMm: number;
+  /** Cross-section shape; absent on legacy profiles → square tube. */
+  shape?: ProfileShape;
 };
 
 /** The stock available for one profile, in both stock modes. */
@@ -20,8 +23,12 @@ export function clampSection(mm: number): number {
   return Math.max(1, Math.min(500, mm));
 }
 
-export function makeProfile(name = '40×40', sectionMm = 40): ProfileDef {
-  return { id: uuid(), name, sectionMm: clampSection(sectionMm) };
+export function makeProfile(
+  name = '40×40',
+  sectionMm = 40,
+  shape: ProfileShape = 'square',
+): ProfileDef {
+  return { id: uuid(), name, sectionMm: clampSection(sectionMm), shape };
 }
 
 export function defaultProfileStock(): ProfileStock {

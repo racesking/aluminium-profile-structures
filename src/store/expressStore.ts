@@ -9,6 +9,7 @@ import {
   type ProfileDef,
   type ProfileStock,
 } from '../core/profiles';
+import { isProfileShape } from '../core/profileShapes';
 import type { ExpressPayload } from '../core/projectFile';
 import { useSettingsStore } from './settingsStore';
 
@@ -101,6 +102,7 @@ function migrateProfiles(data: Partial<ExpressPayload>): MultiProfileShape {
       id: p.id ?? uuid(),
       name: typeof p.name === 'string' ? p.name : '40×40',
       sectionMm: clampSection(typeof p.sectionMm === 'number' ? p.sectionMm : 40),
+      shape: isProfileShape(p.shape) ? p.shape : ('square' as const),
     }));
     const stockByProfile: Record<string, ProfileStock> = {};
     for (const p of profiles) {

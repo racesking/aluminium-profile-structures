@@ -38,6 +38,7 @@ import {
   makeProfile,
   type ProfileDef,
 } from '../core/profiles';
+import { isProfileShape, type ProfileShape } from '../core/profileShapes';
 import type {
   AxisLock,
   CutPiece,
@@ -107,7 +108,10 @@ type StructureState = {
   getEdgeProfile: (edgeId: string) => ProfileDef;
   addProfile: () => void;
   removeProfile: (id: string) => void;
-  updateProfile: (id: string, patch: { name?: string; sectionMm?: number }) => void;
+  updateProfile: (
+    id: string,
+    patch: { name?: string; sectionMm?: number; shape?: ProfileShape },
+  ) => void;
   assignSelectedToProfile: (profileId: string) => void;
   setSnap: (snap: number) => void;
   setGridCellSize: (size: number) => void;
@@ -215,6 +219,7 @@ function migrateProfileSlice(data: {
       id: p.id ?? uuid(),
       name: typeof p.name === 'string' ? p.name : '20×20',
       sectionMm: clampSection(typeof p.sectionMm === 'number' ? p.sectionMm : 20),
+      shape: isProfileShape(p.shape) ? p.shape : ('square' as const),
     }));
     const stockByProfile: Record<string, StockBar[]> = {};
     for (const p of profiles) {
@@ -378,6 +383,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
                 patch.sectionMm !== undefined
                   ? clampSection(patch.sectionMm)
                   : p.sectionMm,
+              shape: patch.shape ?? p.shape,
             }
           : p,
       ),

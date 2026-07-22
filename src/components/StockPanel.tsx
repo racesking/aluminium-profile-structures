@@ -3,6 +3,11 @@ import { useSettingsStore } from '../store/settingsStore';
 import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
 import { profileColorAt } from '../core/profiles';
 import type { ProfileDef } from '../core/profiles';
+import {
+  PROFILE_SHAPES,
+  isProfileShape,
+  profileShapeOf,
+} from '../core/profileShapes';
 import type { StockBar } from '../core/types';
 
 function ProfileStockBlock({
@@ -164,6 +169,22 @@ export function StockPanel() {
               >
                 ×
               </button>
+              <select
+                className="profile-shape-select"
+                value={profileShapeOf(p)}
+                onChange={(e) => {
+                  if (isProfileShape(e.target.value)) {
+                    updateProfile(p.id, { shape: e.target.value });
+                  }
+                }}
+                title="Cross-section shape"
+              >
+                {PROFILE_SHAPES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
             </div>
           ))}
           <button type="button" onClick={addProfile} style={{ marginTop: 6 }}>

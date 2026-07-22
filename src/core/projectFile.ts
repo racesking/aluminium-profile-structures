@@ -212,6 +212,9 @@ const ProfileDefSchema = z.object({
   id: z.string(),
   name: z.string(),
   sectionMm: z.number(),
+  // Cross-section shape (v3, optional). Unknown values fall back to square
+  // during store migration, so this stays a plain string here.
+  shape: z.string().optional(),
 });
 
 const StructurePayloadSchema = z
