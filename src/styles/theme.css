@@ -923,6 +923,105 @@ body.resizing-col canvas {
   margin: 4px 8px;
 }
 
+/* ---- Marking menu (Fusion-style radial right-click) ---- */
+
+.marking-center {
+  position: fixed;
+  z-index: 200;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.marking-item {
+  position: fixed;
+  z-index: 200;
+  transform: translate(-50%, -50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.marking-item:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+}
+
+.marking-item:disabled {
+  opacity: 0.45;
+}
+
+.marking-list {
+  position: fixed;
+  z-index: 200;
+  transform: translateX(-50%);
+  width: 224px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  border-radius: var(--radius);
+}
+
+.marking-list > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  padding: 8px 14px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.marking-list > button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.marking-seg {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px;
+}
+
+.marking-seg-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.marking-seg button {
+  flex: 1;
+  height: 24px;
+  padding: 0;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.marking-seg button.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
