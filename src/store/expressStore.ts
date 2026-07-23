@@ -5,6 +5,7 @@ import { DEFAULT_JOINT_ID, getJoint } from '../core/joints';
 import {
   clampSection,
   defaultProfileStock,
+  isProfileHexColor,
   makeProfile,
   type ProfileDef,
   type ProfileStock,
@@ -103,6 +104,7 @@ function migrateProfiles(data: Partial<ExpressPayload>): MultiProfileShape {
       name: typeof p.name === 'string' ? p.name : '40×40',
       sectionMm: clampSection(typeof p.sectionMm === 'number' ? p.sectionMm : 40),
       shape: isProfileShape(p.shape) ? p.shape : ('square' as const),
+      color: isProfileHexColor(p.color) ? p.color : undefined,
     }));
     const stockByProfile: Record<string, ProfileStock> = {};
     for (const p of profiles) {

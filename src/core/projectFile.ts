@@ -217,6 +217,8 @@ const ProfileDefSchema = z.object({
   // Cross-section shape (v3, optional). Unknown values fall back to square
   // during store migration, so this stays a plain string here.
   shape: z.string().optional(),
+  // Custom display color (v3, optional); invalid values dropped on migration.
+  color: z.string().optional(),
 });
 
 const StructurePayloadSchema = z

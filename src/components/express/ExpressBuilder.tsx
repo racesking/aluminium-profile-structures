@@ -30,6 +30,7 @@ import { ProfilesPanel } from './ProfilesPanel';
 import { TemplateMoreMenu } from './TemplateMoreMenu';
 import { ErrorBoundary, CanvasErrorFallback } from '../ErrorBoundary';
 import { HistoryPanel } from '../HistoryPanel';
+import { DrawingModal } from '../DrawingModal';
 import { startAutosave } from '../../store/autosave';
 import '../../styles/express.css';
 
@@ -64,6 +65,7 @@ export function ExpressBuilder() {
 
   const [busy, setBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [drawingHtml, setDrawingHtml] = useState<string | null>(null);
 
   useEffect(() => {
     startAutosave();
@@ -212,12 +214,7 @@ export function ExpressBuilder() {
   };
 
   const handlePrint = () => {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(bomToPrintHtml(exportInput()));
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 200);
+    setDrawingHtml(bomToPrintHtml(exportInput()));
   };
 
   const DIM_KEYS = ['width', 'depth', 'height', 'length'];
@@ -438,6 +435,7 @@ export function ExpressBuilder() {
         onClose={() => setHistoryOpen(false)}
         kind="express"
       />
+      <DrawingModal html={drawingHtml} onClose={() => setDrawingHtml(null)} />
     </div>
   );
 }

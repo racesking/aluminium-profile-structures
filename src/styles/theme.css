@@ -232,6 +232,82 @@ label {
   flex-shrink: 0;
 }
 
+/* Compact single-row toolbar (Advanced): everything on one dense line. */
+.toolbar-row.compact {
+  padding: 6px 12px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbar-row.compact > button {
+  height: 28px;
+}
+
+.toolbar-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.toolbar-menu > button {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 10px;
+}
+
+.toolbar-menu > button.active {
+  border-color: var(--accent);
+}
+
+.menu-caret {
+  font-size: 8px;
+  color: var(--text-muted);
+}
+
+.toolbar-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.toolbar-menu-list button {
+  justify-content: flex-start;
+  text-align: left;
+  height: 28px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  width: 100%;
+}
+
+.toolbar-menu-list button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.toolbar-menu-list button.active {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* Menus attached near the right edge open leftwards instead of clipping. */
+.toolbar-menu:last-child .toolbar-menu-list {
+  left: auto;
+  right: 0;
+}
+
 /* Grid field styled as a pill so it matches the button clusters. */
 .toolbar-field {
   display: inline-flex;
@@ -663,6 +739,27 @@ body.resizing-col canvas {
   border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
+/* Clickable color swatch (native color picker) in the profile row. */
+.profile-color-input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.profile-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
 .assign-row {
   display: flex;
   flex-wrap: wrap;
@@ -868,15 +965,57 @@ body.resizing-col canvas {
   margin-top: 20px;
 }
 
+/* ---- Technical drawing modal ---- */
+
+.drawing-modal {
+  width: min(940px, calc(100vw - 40px));
+  height: min(92vh, 1100px);
+  display: flex;
+  flex-direction: column;
+}
+
+.drawing-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.drawing-modal-head h2 {
+  margin: 0;
+}
+
+.drawing-modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.drawing-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
 /* ---- Version history (Fusion-style) ---- */
 
-.toolbar-project-name {
-  width: 150px;
-  height: 24px;
+input.toolbar-project-name {
+  width: 120px;
+  height: 28px;
   align-self: center;
   font-family: var(--mono);
   font-size: 11px;
   padding: 0 8px;
+}
+
+/* On narrower windows, drop the brand so the single row never wraps. */
+@media (max-width: 1459px) {
+  .toolbar-row.compact .toolbar-brand {
+    display: none;
+  }
 }
 
 .history-modal {

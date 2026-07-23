@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useStructureStore } from '../store/structureStore';
-import { profileColorAt } from '../core/profiles';
+import { resolveProfileColor } from '../core/profiles';
 import {
   profileShapeOf,
   sectionOutline,
@@ -268,7 +268,7 @@ export function StructureLines() {
         const toNode = nodes.find((n) => n.id === edge.toId);
         if (!fromNode || !toNode) return null;
         const profile = getEdgeProfile(edge.id);
-        const color = profileColorAt(profileIndex[profile.id] ?? 0);
+        const color = resolveProfileColor(profile, profileIndex[profile.id] ?? 0);
         return (
           <ProfileEdge
             key={edge.id}

@@ -1,7 +1,7 @@
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
-import { profileColorAt } from '../core/profiles';
+import { resolveProfileColor } from '../core/profiles';
 import type { ProfileDef } from '../core/profiles';
 import {
   PROFILE_SHAPES,
@@ -121,7 +121,9 @@ export function StockPanel() {
     );
 
   const multi = profiles.length > 1;
-  const colorById = new Map(profiles.map((p, i) => [p.id, profileColorAt(i)]));
+  const colorById = new Map(
+    profiles.map((p, i) => [p.id, resolveProfileColor(p, i)]),
+  );
 
   const noStock = profiles.every((p) =>
     (stockByProfile[p.id] ?? []).every((b) => b.quantity === 0),
@@ -135,9 +137,12 @@ export function StockPanel() {
           <p className="section-title">Profiles</p>
           {profiles.map((p, i) => (
             <div key={p.id} className="profile-row">
-              <span
-                className="profile-swatch"
-                style={{ background: profileColorAt(i) }}
+              <input
+                type="color"
+                className="profile-color-input"
+                value={resolveProfileColor(p, i)}
+                onChange={(e) => updateProfile(p.id, { color: e.target.value })}
+                title="Profile color — used in the 3D view and cut plan"
               />
               <input
                 type="text"
@@ -213,7 +218,7 @@ export function StockPanel() {
               >
                 <span
                   className="profile-swatch"
-                  style={{ background: profileColorAt(i) }}
+                  style={{ background: resolveProfileColor(p, i) }}
                 />
                 {p.name}
               </button>
@@ -264,7 +269,7 @@ export function StockPanel() {
               profile={p}
               stock={stockByProfile[p.id] ?? []}
               showHeader={multi}
-              color={profileColorAt(i)}
+              color={resolveProfileColor(p, i)}
             />
           ))}
           <button
@@ -290,8 +295,7 @@ export function StockPanel() {
                       <span
                         className="profile-swatch"
                         style={{
-                          background:
-                            colorById.get(pr.profileId) ?? profileColorAt(0),
+                          background: colorById.get(pr.profileId) ?? '#888888',
                         }}
                       />
                       {pr.profileName} · {pr.sectionMm}×{pr.sectionMm} mm

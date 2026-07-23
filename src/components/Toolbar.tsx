@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -6,11 +6,103 @@ import { toDisplay, fromDisplay, unitInputStep } from '../core/units';
 import { openProjectAndRoute, saveStructureProject } from '../store/projectIO';
 import { bomToPrintHtml, structureToExportInput } from '../core/bomExport';
 import { WORK_PLANE_LABELS } from '../core/workPlane';
-import type { WorkPlane } from '../core/types';
+import type { ToolMode, ViewPreset, WorkPlane } from '../core/types';
 import { BoxFrameDialog } from './BoxFrameDialog';
 import { HistoryPanel } from './HistoryPanel';
+import { DrawingModal } from './DrawingModal';
 
 const PLANES: WorkPlane[] = ['xz', 'xy', 'yz', 'free'];
+const PLANE_SHORT: Record<WorkPlane, string> = {
+  xz: 'XZ',
+  xy: 'XY',
+  yz: 'YZ',
+  free: '3D',
+};
+
+const VIEWS: ViewPreset[] = ['perspective', 'top', 'front', 'right'];
+const VIEW_SHORT: Record<ViewPreset, string> = {
+  perspective: 'Iso',
+  top: 'Top',
+  front: 'Front',
+  right: 'Right',
+};
+
+const TOOLS: { mode: ToolMode; label: string; title: string }[] = [
+  { mode: 'select', label: 'Select', title: 'Select (V)' },
+  { mode: 'box', label: 'Box', title: 'Box select — drag a rectangle (B)' },
+  { mode: 'placeNode', label: 'Node', title: 'Place node (N)' },
+  { mode: 'connect', label: 'Connect', title: 'Connect (C)' },
+];
+
+type MenuItem = {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+/** Compact dropdown for the toolbar; closes on outside click or Escape. */
+function ToolbarMenu({
+  label,
+  title,
+  items,
+}: {
+  label: ReactNode;
+  title?: string;
+  items: MenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="toolbar-menu" ref={rootRef}>
+      <button
+        type="button"
+        className={open ? 'active' : ''}
+        onClick={() => setOpen((v) => !v)}
+        title={title}
+      >
+        {label}
+        <span className="menu-caret">▾</span>
+      </button>
+      {open && (
+        <div className="toolbar-menu-list" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={item.active ? 'active' : ''}
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Toolbar() {
   const toolMode = useStructureStore((s) => s.toolMode);
@@ -30,16 +122,16 @@ export function Toolbar() {
   const loadBoxFrame = useStructureStore((s) => s.loadBoxFrame);
   const exportCutList = useStructureStore((s) => s.exportCutList);
   const edgeCount = useStructureStore((s) => s.edges.length);
+  const projectName = useStructureStore((s) => s.projectName);
+  const setProjectName = useStructureStore((s) => s.setProjectName);
 
   const setView = useAppStore((s) => s.setView);
   const units = useSettingsStore((s) => s.units);
 
   const [boxOpen, setBoxOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [drawingHtml, setDrawingHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const projectName = useStructureStore((s) => s.projectName);
-  const setProjectName = useStructureStore((s) => s.setProjectName);
 
   const handleSave = async () => {
     setBusy(true);
@@ -85,18 +177,13 @@ export function Toolbar() {
       projectName,
       dateStr: new Date().toLocaleDateString(),
     });
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(bomToPrintHtml(input));
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 200);
+    setDrawingHtml(bomToPrintHtml(input));
   };
 
   return (
     <>
       <header className="toolbar">
-        <div className="toolbar-row">
+        <div className="toolbar-row compact">
           <button
             type="button"
             onClick={() => setView('wizard')}
@@ -106,58 +193,40 @@ export function Toolbar() {
           </button>
           <h1 className="toolbar-brand">Profile Builder</h1>
 
-          <span className="toolbar-group-label">Tools</span>
           <div className="toolbar-group">
-            <button
-              type="button"
-              className={toolMode === 'select' ? 'active' : ''}
-              onClick={() => setToolMode('select')}
-              title="Select (V)"
-            >
-              Select
-            </button>
-            <button
-              type="button"
-              className={toolMode === 'box' ? 'active' : ''}
-              onClick={() => setToolMode('box')}
-              title="Box select — drag a rectangle (B)"
-            >
-              Box
-            </button>
-            <button
-              type="button"
-              className={toolMode === 'placeNode' ? 'active' : ''}
-              onClick={() => setToolMode('placeNode')}
-              title="Place node (N)"
-            >
-              Node
-            </button>
-            <button
-              type="button"
-              className={toolMode === 'connect' ? 'active' : ''}
-              onClick={() => setToolMode('connect')}
-              title="Connect (C)"
-            >
-              Connect
-            </button>
-          </div>
-
-          <span className="toolbar-group-label">Plane</span>
-          <div className="toolbar-group">
-            {PLANES.map((p) => (
+            {TOOLS.map((t) => (
               <button
-                key={p}
+                key={t.mode}
                 type="button"
-                className={workPlane === p ? 'active' : ''}
-                onClick={() => setWorkPlane(p)}
-                title={WORK_PLANE_LABELS[p]}
+                className={toolMode === t.mode ? 'active' : ''}
+                onClick={() => setToolMode(t.mode)}
+                title={t.title}
               >
-                {p === 'free' ? '3D' : p.toUpperCase()}
+                {t.label}
               </button>
             ))}
           </div>
 
-          <span className="toolbar-group-label">Edit</span>
+          <ToolbarMenu
+            label={PLANE_SHORT[workPlane]}
+            title="Work plane for node placement"
+            items={PLANES.map((p) => ({
+              label: WORK_PLANE_LABELS[p],
+              active: workPlane === p,
+              onSelect: () => setWorkPlane(p),
+            }))}
+          />
+
+          <ToolbarMenu
+            label={VIEW_SHORT[viewPreset]}
+            title="Camera view preset"
+            items={VIEWS.map((v) => ({
+              label: VIEW_SHORT[v],
+              active: viewPreset === v,
+              onSelect: () => setViewPreset(v),
+            }))}
+          />
+
           <div className="toolbar-group">
             <button
               type="button"
@@ -165,7 +234,7 @@ export function Toolbar() {
               onClick={undo}
               title="Undo (Ctrl+Z)"
             >
-              Undo
+              ↶
             </button>
             <button
               type="button"
@@ -173,13 +242,48 @@ export function Toolbar() {
               onClick={redo}
               title="Redo (Ctrl+Y)"
             >
-              Redo
+              ↷
+            </button>
+          </div>
+
+          <div className="toolbar-group">
+            <button
+              type="button"
+              onClick={() => setBoxOpen(true)}
+              title="Create a rectangular box frame"
+            >
+              + Box frame
+            </button>
+          </div>
+
+          <label className="toolbar-field" title="Grid cell size">
+            {units}
+            <input
+              type="number"
+              min={0}
+              max={10000}
+              step={unitInputStep(units)}
+              value={toDisplay(gridCellSize, units)}
+              onChange={(e) =>
+                setGridCellSize(
+                  fromDisplay(parseFloat(e.target.value) || 0, units) || 1,
+                )
+              }
+            />
+          </label>
+          <div className="toolbar-group">
+            <button
+              type="button"
+              className={snapToGrid ? 'active' : ''}
+              onClick={() => setSnapToGrid(!snapToGrid)}
+              title="Snap to grid"
+            >
+              Snap
             </button>
           </div>
 
           <div className="toolbar-spacer" />
 
-          <span className="toolbar-group-label">Project</span>
           <input
             className="toolbar-project-name"
             type="text"
@@ -197,86 +301,36 @@ export function Toolbar() {
             </button>
             <button
               type="button"
-              onClick={handleSave}
-              disabled={busy}
-              title="Save project to a file on your computer"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={handleOpen}
-              disabled={busy}
-              title="Open a project file from your computer"
-            >
-              Open
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              title="Export the cut list as text"
-            >
-              Export
-            </button>
-            <button
-              type="button"
               onClick={handleDrawing}
               disabled={edgeCount === 0}
-              title="Isometric technical drawing + parts list (Save as PDF)"
+              title="Technical drawing + parts list (print / save as PDF)"
             >
               Drawing
             </button>
-            <button type="button" onClick={() => setView('settings')} title="Settings">
-              ⚙
-            </button>
-          </div>
-        </div>
-
-        <div className="toolbar-row secondary">
-          <span className="toolbar-group-label">Create</span>
-          <div className="toolbar-group">
-            <button type="button" onClick={() => setBoxOpen(true)}>
-              Box frame
-            </button>
           </div>
 
-          <span className="toolbar-group-label">Grid</span>
-          <label className="toolbar-field">
-            {units}
-            <input
-              type="number"
-              min={0}
-              max={10000}
-              step={unitInputStep(units)}
-              value={toDisplay(gridCellSize, units)}
-              onChange={(e) =>
-                setGridCellSize(fromDisplay(parseFloat(e.target.value) || 0, units) || 1)
-              }
-            />
-          </label>
-          <div className="toolbar-group">
-            <button
-              type="button"
-              className={snapToGrid ? 'active' : ''}
-              onClick={() => setSnapToGrid(!snapToGrid)}
-            >
-              Snap
-            </button>
-          </div>
-
-          <span className="toolbar-group-label">View</span>
-          <div className="toolbar-group">
-            {(['perspective', 'top', 'front', 'right'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={viewPreset === v ? 'active' : ''}
-                onClick={() => setViewPreset(v)}
-              >
-                {v === 'perspective' ? 'Iso' : v}
-              </button>
-            ))}
-          </div>
+          <ToolbarMenu
+            label="File"
+            title="Project files, export and settings"
+            items={[
+              {
+                label: 'Save project file…',
+                disabled: busy,
+                onSelect: () => void handleSave(),
+              },
+              {
+                label: 'Open project file…',
+                disabled: busy,
+                onSelect: () => void handleOpen(),
+              },
+              {
+                label: 'Export cut list (.txt)',
+                disabled: edgeCount === 0,
+                onSelect: handleExport,
+              },
+              { label: 'Settings', onSelect: () => setView('settings') },
+            ]}
+          />
         </div>
       </header>
       <BoxFrameDialog
@@ -289,6 +343,7 @@ export function Toolbar() {
         onClose={() => setHistoryOpen(false)}
         kind="structure"
       />
+      <DrawingModal html={drawingHtml} onClose={() => setDrawingHtml(null)} />
     </>
   );
 }

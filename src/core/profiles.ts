@@ -9,7 +9,20 @@ export type ProfileDef = {
   sectionMm: number;
   /** Cross-section shape; absent on legacy profiles → square tube. */
   shape?: ProfileShape;
+  /** Custom display color (#rrggbb); absent → palette color by index. */
+  color?: string;
 };
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+export function isProfileHexColor(v: unknown): v is string {
+  return typeof v === 'string' && HEX_COLOR.test(v);
+}
+
+/** The display color for a profile: its custom color, else the palette. */
+export function resolveProfileColor(profile: ProfileDef, index: number): string {
+  return isProfileHexColor(profile.color) ? profile.color : profileColorAt(index);
+}
 
 /** The stock available for one profile, in both stock modes. */
 export type ProfileStock = {

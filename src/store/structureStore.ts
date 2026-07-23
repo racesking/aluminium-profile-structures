@@ -36,6 +36,7 @@ import type {
 } from '../core/cuttingStock';
 import {
   clampSection,
+  isProfileHexColor,
   makeProfile,
   type ProfileDef,
 } from '../core/profiles';
@@ -117,7 +118,12 @@ type StructureState = {
   removeProfile: (id: string) => void;
   updateProfile: (
     id: string,
-    patch: { name?: string; sectionMm?: number; shape?: ProfileShape },
+    patch: {
+      name?: string;
+      sectionMm?: number;
+      shape?: ProfileShape;
+      color?: string;
+    },
   ) => void;
   assignSelectedToProfile: (profileId: string) => void;
   setSnap: (snap: number) => void;
@@ -228,6 +234,7 @@ function migrateProfileSlice(data: {
       name: typeof p.name === 'string' ? p.name : '20×20',
       sectionMm: clampSection(typeof p.sectionMm === 'number' ? p.sectionMm : 20),
       shape: isProfileShape(p.shape) ? p.shape : ('square' as const),
+      color: isProfileHexColor(p.color) ? p.color : undefined,
     }));
     const stockByProfile: Record<string, StockBar[]> = {};
     for (const p of profiles) {
@@ -398,6 +405,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
                   ? clampSection(patch.sectionMm)
                   : p.sectionMm,
               shape: patch.shape ?? p.shape,
+              color: isProfileHexColor(patch.color) ? patch.color : p.color,
             }
           : p,
       ),
