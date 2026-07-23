@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStructureStore } from '../store/structureStore';
-import type { AxisLock, WorkPlane } from '../core/types';
+import { getActiveEdgeIds } from '../core/selection';
+import { useRingActions } from './markingActions';
+import type { WorkPlane } from '../core/types';
 
 export type ContextMenuState = {
   x: number;
@@ -16,9 +18,8 @@ type Props = {
 };
 
 /** Ring radius of the marking menu, px. */
-const RING_R = 84;
+const RING_R = 62;
 
-const AXES: Exclude<AxisLock, null>[] = ['x', 'y', 'z'];
 const PLANES: { id: WorkPlane; label: string }[] = [
   { id: 'xz', label: 'XZ' },
   { id: 'xy', label: 'XY' },
@@ -27,10 +28,9 @@ const PLANES: { id: WorkPlane; label: string }[] = [
 ];
 
 /**
- * Fusion-style marking menu: right-click opens a radial ring of quick actions
- * around the cursor with a linear list of tools below (axis lock, work plane,
- * and the deeper commands). Radial picks close the menu; the lock / plane
- * segments stay open so several can be set in one visit.
+ * Fusion-style marking menu: a radial ring of quick actions around the cursor
+ * with a linear list below (part lock, work plane, deeper commands). Radial
+ * picks close the menu; the segments stay open so several can be set at once.
  */
 export function ContextMenu({
   menu,
@@ -40,30 +40,21 @@ export function ContextMenu({
   onHelp,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const ring = useRingActions();
 
-  const copySelection = useStructureStore((s) => s.copySelection);
-  const pasteSelection = useStructureStore((s) => s.pasteSelection);
-  const duplicateSelection = useStructureStore((s) => s.duplicateSelection);
-  const deleteSelected = useStructureStore((s) => s.deleteSelected);
-  const selectAllMembers = useStructureStore((s) => s.selectAllMembers);
-  const undo = useStructureStore((s) => s.undo);
-  const redo = useStructureStore((s) => s.redo);
-  const canUndo = useStructureStore((s) => s.canUndo);
-  const canRedo = useStructureStore((s) => s.canRedo);
-  const clipboard = useStructureStore((s) => s.clipboard);
-  const axisLock = useStructureStore((s) => s.axisLock);
-  const setAxisLock = useStructureStore((s) => s.setAxisLock);
   const workPlane = useStructureStore((s) => s.workPlane);
   const setWorkPlane = useStructureStore((s) => s.setWorkPlane);
-  const setViewPreset = useStructureStore((s) => s.setViewPreset);
   const optimize = useStructureStore((s) => s.optimize);
+  const toggleLockSelection = useStructureStore((s) => s.toggleLockSelection);
   const edgeCount = useStructureStore((s) => s.edges.length);
-  const hasSelection = useStructureStore(
-    (s) => s.selectedEdgeIds.length > 0 || s.selection !== null,
-  );
-  const hasEdgeSelection = useStructureStore(
-    (s) => s.selectedEdgeIds.length > 0 || s.selection?.type === 'edge',
-  );
+  const selection = useStructureStore((s) => s.selection);
+  const selectedEdgeIds = useStructureStore((s) => s.selectedEdgeIds);
+  const lockedEdgeIds = useStructureStore((s) => s.lockedEdgeIds);
+
+  const hasEdgeSelection =
+    selectedEdgeIds.length > 0 || selection?.type === 'edge';
+  const activeIds = getActiveEdgeIds(selection, selectedEdgeIds);
+  const anyUnlocked = activeIds.some((id) => !lockedEdgeIds.includes(id));
 
   useEffect(() => {
     if (!menu) return;
@@ -84,25 +75,13 @@ export function ContextMenu({
   if (!menu) return null;
 
   // Keep the ring and its list on screen.
-  const cx = Math.min(Math.max(menu.x, RING_R + 50), window.innerWidth - RING_R - 50);
-  const cy = Math.min(Math.max(menu.y, RING_R + 40), window.innerHeight - RING_R - 260);
+  const cx = Math.min(Math.max(menu.x, RING_R + 44), window.innerWidth - RING_R - 44);
+  const cy = Math.min(Math.max(menu.y, RING_R + 36), window.innerHeight - RING_R - 220);
 
   const run = (fn: () => void) => () => {
     fn();
     onClose();
   };
-
-  // Eight radial slots, clockwise from the top.
-  const ring: { label: string; disabled?: boolean; onPick: () => void }[] = [
-    { label: 'Iso view', onPick: run(() => setViewPreset('perspective')) },
-    { label: 'Paste', disabled: !clipboard?.edges.length, onPick: run(pasteSelection) },
-    { label: 'Redo', disabled: !canRedo, onPick: run(redo) },
-    { label: 'Select all', disabled: edgeCount === 0, onPick: run(selectAllMembers) },
-    { label: 'Duplicate', disabled: !hasEdgeSelection, onPick: run(duplicateSelection) },
-    { label: 'Delete', disabled: !hasSelection, onPick: run(deleteSelected) },
-    { label: 'Undo', disabled: !canUndo, onPick: run(undo) },
-    { label: 'Copy', disabled: !hasEdgeSelection, onPick: run(copySelection) },
-  ];
 
   return (
     <div ref={ref} onContextMenu={(e) => e.preventDefault()}>
@@ -118,39 +97,22 @@ export function ContextMenu({
             className="marking-item"
             style={{ left: x, top: y }}
             disabled={item.disabled}
-            onClick={item.onPick}
+            onClick={run(item.run)}
           >
             {item.label}
           </button>
         );
       })}
 
-      <div
-        className="marking-list"
-        style={{ left: cx, top: cy + RING_R + 30 }}
-      >
-        <div className="marking-seg">
-          <span className="marking-seg-label">Lock</span>
-          {AXES.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={axisLock === a ? 'active' : ''}
-              onClick={() => setAxisLock(axisLock === a ? null : a)}
-              title={`Lock movement to the ${a.toUpperCase()} axis (Esc clears)`}
-            >
-              {a.toUpperCase()}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={axisLock === null ? 'active' : ''}
-            onClick={() => setAxisLock(null)}
-            title="No axis lock"
-          >
-            Off
-          </button>
-        </div>
+      <div className="marking-list" style={{ left: cx, top: cy + RING_R + 24 }}>
+        <button
+          type="button"
+          disabled={!hasEdgeSelection}
+          onClick={run(toggleLockSelection)}
+          title="Locked parts cannot be moved, re-dimensioned or deleted"
+        >
+          {anyUnlocked || !hasEdgeSelection ? '🔒 Lock part' : '🔓 Unlock part'}
+        </button>
         <div className="marking-seg">
           <span className="marking-seg-label">Plane</span>
           {PLANES.map((p) => (
@@ -180,11 +142,7 @@ export function ContextMenu({
         >
           Member dimension…
         </button>
-        <button
-          type="button"
-          disabled={edgeCount === 0}
-          onClick={run(optimize)}
-        >
+        <button type="button" disabled={edgeCount === 0} onClick={run(optimize)}>
           Optimize cuts
         </button>
         <div className="context-menu-sep" />

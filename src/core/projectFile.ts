@@ -33,6 +33,8 @@ export type StructurePayload = {
   kerf: number;
   /** Joint type rendered at shared nodes; optional for older projects. */
   jointId?: string;
+  /** Members locked against move/resize/delete; optional for older projects. */
+  lockedEdges?: string[];
   snap: number;
   gridCellSize: number;
   snapToGrid: boolean;
@@ -235,6 +237,7 @@ const StructurePayloadSchema = z
     stock: z.array(StockBarSchema).optional(),
     kerf: z.number(),
     jointId: z.string().optional(),
+    lockedEdges: z.array(z.string()).optional(),
     snap: z.number(),
     gridCellSize: z.number(),
     snapToGrid: z.boolean(),

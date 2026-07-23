@@ -230,6 +230,7 @@ export function StructureLines() {
   const profiles = useStructureStore((s) => s.profiles);
   const edgeProfile = useStructureStore((s) => s.edgeProfile);
   const jointId = useStructureStore((s) => s.jointId);
+  const lockedEdgeIds = useStructureStore((s) => s.lockedEdgeIds);
   const getEdgeProfile = useStructureStore((s) => s.getEdgeProfile);
   const selectedEdgeIds = useStructureStore((s) => s.selectedEdgeIds);
   const secondEdgeId = useStructureStore((s) => s.secondEdgeId);
@@ -268,7 +269,10 @@ export function StructureLines() {
         const toNode = nodes.find((n) => n.id === edge.toId);
         if (!fromNode || !toNode) return null;
         const profile = getEdgeProfile(edge.id);
-        const color = resolveProfileColor(profile, profileIndex[profile.id] ?? 0);
+        // Locked parts render in neutral grey so their pinned state is visible.
+        const color = lockedEdgeIds.includes(edge.id)
+          ? '#9aa0a6'
+          : resolveProfileColor(profile, profileIndex[profile.id] ?? 0);
         return (
           <ProfileEdge
             key={edge.id}

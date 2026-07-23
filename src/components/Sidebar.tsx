@@ -20,6 +20,7 @@ export function Sidebar() {
   const setSecondEdge = useStructureStore((s) => s.setSecondEdge);
   const setSecondNode = useStructureStore((s) => s.setSecondNode);
   const secondNodeId = useStructureStore((s) => s.secondNodeId);
+  const lockedEdgeIds = useStructureStore((s) => s.lockedEdgeIds);
   const getEdgeLength = useStructureStore((s) => s.getEdgeLength);
   const setEdgeLengthById = useStructureStore((s) => s.setEdgeLengthById);
   const getNodePairDistance = useStructureStore((s) => s.getNodePairDistance);
@@ -207,6 +208,7 @@ export function Sidebar() {
                   onClick={() => setSelection({ type: 'edge', id: e.id })}
                 >
                   M{i + 1} · {formatLength(getEdgeLength(e.id), units)}
+                  {lockedEdgeIds.includes(e.id) ? ' 🔒' : ''}
                 </div>
               ))
             )}

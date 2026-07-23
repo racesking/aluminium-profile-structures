@@ -942,12 +942,12 @@ body.resizing-col canvas {
   position: fixed;
   z-index: 200;
   transform: translate(-50%, -50%);
-  padding: 6px 12px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -965,11 +965,11 @@ body.resizing-col canvas {
   position: fixed;
   z-index: 200;
   transform: translateX(-50%);
-  width: 224px;
+  width: 196px;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  padding: 4px 0;
+  padding: 3px 0;
   border-radius: var(--radius);
 }
 
@@ -979,9 +979,9 @@ body.resizing-col canvas {
   text-align: left;
   border: none;
   border-radius: 0;
-  padding: 8px 14px;
+  padding: 6px 12px;
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .marking-list > button:hover:not(:disabled) {
@@ -1008,9 +1008,9 @@ body.resizing-col canvas {
 
 .marking-seg button {
   flex: 1;
-  height: 24px;
+  height: 22px;
   padding: 0;
-  font-size: 11px;
+  font-size: 10px;
   border-radius: 5px;
   border: 1px solid var(--border);
   background: var(--surface-elevated);
@@ -1020,6 +1020,21 @@ body.resizing-col canvas {
   background: var(--accent);
   color: var(--surface);
   border-color: var(--accent);
+}
+
+/* Brief confirmation shown at the cursor after a flick gesture. */
+.flick-toast {
+  position: fixed;
+  z-index: 210;
+  transform: translate(-50%, -140%);
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
 .modal-overlay {

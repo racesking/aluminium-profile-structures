@@ -13,6 +13,7 @@ import {
 } from '../core/visualScale';
 import { StructureScene } from './StructureScene';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
+import { flickSector, useRingActions } from './markingActions';
 import { HelpModal } from './HelpModal';
 import { MemberDimensionModal } from './MemberDimensionModal';
 import { ErrorBoundary, CanvasErrorFallback } from './ErrorBoundary';
@@ -91,6 +92,9 @@ function CameraController() {
       dampingFactor={0.08}
       // Free the left mouse button for the marquee while box-selecting.
       enableRotate={toolMode !== 'box'}
+      // Fusion-style buttons: left orbits, middle pans; the right button is
+      // reserved for the marking menu and its flick gestures.
+      mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN }}
       minDistance={Math.max(5, span * 0.05)}
       maxDistance={Math.max(50000, span * 50)}
       target={center}
@@ -145,6 +149,32 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   const viewRef = useRef<CapturedView | null>(null);
   const lastDown = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [marquee, setMarquee] = useState<Marquee | null>(null);
+
+  // Flick gesture: right-press, drag toward a marking-menu sector, release.
+  const ringActions = useRingActions();
+  const rightDown = useRef<{ x: number; y: number } | null>(null);
+  const suppressMenu = useRef(false);
+  const [flickToast, setFlickToast] = useState<{
+    label: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onFlickUp = (e: React.PointerEvent) => {
+    if (e.button !== 2 || !rightDown.current) return;
+    const dx = e.clientX - rightDown.current.x;
+    const dy = e.clientY - rightDown.current.y;
+    rightDown.current = null;
+    if (Math.hypot(dx, dy) < 30) return; // a plain right-click → menu opens
+    suppressMenu.current = true;
+    const action = ringActions[flickSector(dx, dy)];
+    if (action.disabled) return;
+    action.run();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setFlickToast({ label: action.label, x: e.clientX, y: e.clientY });
+    toastTimer.current = setTimeout(() => setFlickToast(null), 700);
+  };
 
   const runMarquee = (
     sx: number,
@@ -203,6 +233,10 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     lastDown.current = { x: e.clientX, y: e.clientY };
+    if (e.button === 2) {
+      rightDown.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
     if (toolMode !== 'box' || e.button !== 0) return;
     const view = viewRef.current;
     if (!view) return;
@@ -263,8 +297,13 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
     <div
       className="viewport-wrap"
       onPointerDown={onPointerDown}
+      onPointerUp={onFlickUp}
       onContextMenu={(e) => {
         e.preventDefault();
+        if (suppressMenu.current) {
+          suppressMenu.current = false; // consumed by a flick gesture
+          return;
+        }
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >
@@ -308,6 +347,14 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
           className={`marquee ${marquee.crossing ? 'crossing' : ''}`}
           style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
         />
+      )}
+      {flickToast && (
+        <div
+          className="flick-toast"
+          style={{ left: flickToast.x, top: flickToast.y }}
+        >
+          {flickToast.label}
+        </div>
       )}
       <div className="mode-badge">{modeLabel}</div>
       <ContextMenu

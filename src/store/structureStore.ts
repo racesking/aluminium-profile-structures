@@ -87,6 +87,8 @@ type StructureState = {
   kerf: number;
   /** Joint type used for rendering members at shared nodes. */
   jointId: string;
+  /** Locked members: cannot be moved, re-dimensioned, or deleted. */
+  lockedEdgeIds: string[];
   snap: number;
   gridCellSize: number;
   snapToGrid: boolean;
@@ -112,6 +114,8 @@ type StructureState = {
   undo: () => void;
   redo: () => void;
 
+  /** Lock every selected member, or unlock them if all are already locked. */
+  toggleLockSelection: () => void;
   getEdgeProfileId: (edgeId: string) => string;
   getEdgeProfile: (edgeId: string) => ProfileDef;
   addProfile: () => void;
@@ -270,6 +274,22 @@ function migrateProfileSlice(data: {
   };
 }
 
+/** Node ids pinned in place because they belong to a locked member. */
+function lockedNodeIds(
+  edges: { id: string; fromId: string; toId: string }[],
+  lockedEdgeIds: string[],
+): Set<string> {
+  const locked = new Set(lockedEdgeIds);
+  const pinned = new Set<string>();
+  for (const e of edges) {
+    if (locked.has(e.id)) {
+      pinned.add(e.fromId);
+      pinned.add(e.toId);
+    }
+  }
+  return pinned;
+}
+
 function applySnapshot(snapshot: HistorySnapshot): Partial<StructureState> {
   return {
     nodes: snapshot.nodes,
@@ -289,6 +309,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   ...defaultProfileSlice(),
   kerf: 0,
   jointId: DEFAULT_JOINT_ID,
+  lockedEdgeIds: [],
   snap: 5,
   gridCellSize: 5,
   snapToGrid: true,
@@ -354,6 +375,21 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       canUndo: true,
       canRedo: future.length > 0,
       selection: null,
+    });
+  },
+
+  toggleLockSelection: () => {
+    const ids = getActiveEdgeIds(get().selection, get().selectedEdgeIds);
+    if (ids.length === 0) return;
+    set((s) => {
+      const locked = new Set(s.lockedEdgeIds);
+      const anyUnlocked = ids.some((id) => !locked.has(id));
+      if (anyUnlocked) {
+        for (const id of ids) locked.add(id);
+      } else {
+        for (const id of ids) locked.delete(id);
+      }
+      return { lockedEdgeIds: [...locked] };
     });
   },
 
@@ -577,7 +613,10 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   translateSelection: (delta) => {
     const edgeIds = getActiveEdgeIds(get().selection, get().selectedEdgeIds);
     if (edgeIds.length === 0) return;
-    const nodeIds = getSelectedNodeIds(get().edges, edgeIds);
+    const pinned = lockedNodeIds(get().edges, get().lockedEdgeIds);
+    const nodeIds = getSelectedNodeIds(get().edges, edgeIds).filter(
+      (id) => !pinned.has(id),
+    );
     if (nodeIds.length === 0) return;
     get().pushHistory();
     set((s) => {
@@ -703,7 +742,10 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   moveNode: (id, position, options) => {
-    const { snapToGrid, gridCellSize } = get();
+    const { snapToGrid, gridCellSize, edges, lockedEdgeIds } = get();
+    if (lockedEdgeIds.length > 0 && lockedNodeIds(edges, lockedEdgeIds).has(id)) {
+      return; // endpoint of a locked member — pinned in place
+    }
     const snapped = maybeSnapVec3(position, snapToGrid, gridCellSize);
     set((s) => {
       let nodes = s.nodes.map((n) =>
@@ -724,9 +766,24 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   deleteSelected: () => {
-    const { selection, nodes, edges, constraints, selectedEdgeIds } = get();
-    const edgeIdsToDelete = getActiveEdgeIds(selection, selectedEdgeIds);
+    const { selection, nodes, edges, constraints, selectedEdgeIds, lockedEdgeIds } =
+      get();
+    const lockedSet = new Set(lockedEdgeIds);
+    const edgeIdsToDelete = getActiveEdgeIds(selection, selectedEdgeIds).filter(
+      (id) => !lockedSet.has(id),
+    );
     if (!selection && edgeIdsToDelete.length === 0) return;
+    if (selection?.type === 'node') {
+      // Deleting a node would take its incident members with it — refuse when
+      // any of them is locked.
+      const nid = selection.id;
+      const touchesLocked = edges.some(
+        (e) => lockedSet.has(e.id) && (e.fromId === nid || e.toId === nid),
+      );
+      if (touchesLocked) return;
+    } else if (edgeIdsToDelete.length === 0) {
+      return; // everything selected is locked
+    }
     get().pushHistory();
     if (selection?.type === 'node') {
       const nid = selection.id;
@@ -805,9 +862,13 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   cancelConnect: () => set({ connectFromId: null }),
 
   setEdgeLengthById: (edgeId, length) => {
-    const { edges, nodes, constraints } = get();
+    const { edges, nodes, constraints, lockedEdgeIds } = get();
     const edge = edges.find((e) => e.id === edgeId);
     if (!edge || length <= 0) return;
+    // A locked member keeps its length; a member whose far endpoint belongs to
+    // a locked member cannot push that endpoint around either.
+    if (lockedEdgeIds.includes(edgeId)) return;
+    if (lockedNodeIds(edges, lockedEdgeIds).has(edge.toId)) return;
     get().pushHistory();
     let newNodes = setEdgeLength(nodes, edge.fromId, edge.toId, length, 'to');
     newNodes = enforceConstraints(newNodes, edges, constraints);
@@ -924,6 +985,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       edges,
       constraints: [],
       edgeProfile: {},
+      lockedEdgeIds: [],
       selection: null,
       selectedEdgeIds: [],
       connectFromId: null,
@@ -959,6 +1021,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         constraints: [],
         ...slice,
         kerf: kerf ?? s.kerf,
+        lockedEdgeIds: [],
         // Hand-off starts a fresh project; the next autosave creates it.
         projectId: null,
         projectName: 'Imported design',
@@ -1080,6 +1143,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       stockByProfile,
       kerf,
       jointId,
+      lockedEdgeIds,
       snap,
       gridCellSize,
       snapToGrid,
@@ -1099,6 +1163,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       stockByProfile: stockClone,
       kerf,
       jointId,
+      lockedEdges: [...lockedEdgeIds],
       snap,
       gridCellSize,
       snapToGrid,
@@ -1115,6 +1180,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       ...migrateProfileSlice(payload),
       kerf: payload.kerf ?? 0,
       jointId: getJoint(payload.jointId ?? DEFAULT_JOINT_ID).id,
+      lockedEdgeIds: Array.isArray(payload.lockedEdges)
+        ? payload.lockedEdges.filter((id): id is string => typeof id === 'string')
+        : [],
       snap: payload.snap ?? 5,
       gridCellSize: payload.gridCellSize ?? 5,
       snapToGrid: payload.snapToGrid ?? true,
