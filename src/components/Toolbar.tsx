@@ -8,6 +8,7 @@ import { bomToPrintHtml, structureToExportInput } from '../core/bomExport';
 import { WORK_PLANE_LABELS } from '../core/workPlane';
 import type { WorkPlane } from '../core/types';
 import { BoxFrameDialog } from './BoxFrameDialog';
+import { HistoryPanel } from './HistoryPanel';
 
 const PLANES: WorkPlane[] = ['xz', 'xy', 'yz', 'free'];
 
@@ -34,12 +35,16 @@ export function Toolbar() {
   const units = useSettingsStore((s) => s.units);
 
   const [boxOpen, setBoxOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const projectName = useStructureStore((s) => s.projectName);
+  const setProjectName = useStructureStore((s) => s.setProjectName);
 
   const handleSave = async () => {
     setBusy(true);
     try {
-      await saveStructureProject('structure');
+      await saveStructureProject(projectName);
     } finally {
       setBusy(false);
     }
@@ -77,7 +82,7 @@ export function Toolbar() {
       stockByProfile,
       kerf,
       units,
-      projectName: 'Structure',
+      projectName,
       dateStr: new Date().toLocaleDateString(),
     });
     const w = window.open('', '_blank');
@@ -175,7 +180,21 @@ export function Toolbar() {
           <div className="toolbar-spacer" />
 
           <span className="toolbar-group-label">Project</span>
+          <input
+            className="toolbar-project-name"
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            title="Project name"
+          />
           <div className="toolbar-group">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              title="Version history — autosaves and checkpoints"
+            >
+              History
+            </button>
             <button
               type="button"
               onClick={handleSave}
@@ -264,6 +283,11 @@ export function Toolbar() {
         open={boxOpen}
         onClose={() => setBoxOpen(false)}
         onApply={loadBoxFrame}
+      />
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        kind="structure"
       />
     </>
   );

@@ -6,6 +6,7 @@ import { StockPanel } from './StockPanel';
 import { PanelResizer } from './PanelResizer';
 import { useLayoutStore } from '../store/layoutStore';
 import { useStructureStore } from '../store/structureStore';
+import { restoreLastStructureProject, startAutosave } from '../store/autosave';
 
 function KeyboardShortcuts() {
   const setToolMode = useStructureStore((s) => s.setToolMode);
@@ -161,6 +162,12 @@ function KeyboardShortcuts() {
 export function AdvancedBuilder() {
   const leftWidth = useLayoutStore((s) => s.leftWidth);
   const rightWidth = useLayoutStore((s) => s.rightWidth);
+
+  // Autosave + reload continuity: reopen the last project when mounting empty.
+  useEffect(() => {
+    startAutosave();
+    void restoreLastStructureProject();
+  }, []);
 
   const focusTranslate = () => {
     document

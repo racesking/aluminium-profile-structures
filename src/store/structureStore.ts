@@ -72,6 +72,9 @@ function cloneSnapshot(
 }
 
 type StructureState = {
+  /** Version-store project this design belongs to; null until first autosave. */
+  projectId: string | null;
+  projectName: string;
   nodes: Node[];
   edges: { id: string; fromId: string; toId: string }[];
   constraints: EdgeConstraint[];
@@ -103,6 +106,7 @@ type StructureState = {
   canUndo: boolean;
   canRedo: boolean;
 
+  setProjectName: (name: string) => void;
   pushHistory: () => void;
   undo: () => void;
   redo: () => void;
@@ -270,6 +274,8 @@ function applySnapshot(snapshot: HistorySnapshot): Partial<StructureState> {
 }
 
 export const useStructureStore = create<StructureState>((set, get) => ({
+  projectId: null,
+  projectName: 'Untitled structure',
   nodes: [],
   edges: [],
   constraints: [],
@@ -295,6 +301,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   historyFuture: [],
   canUndo: false,
   canRedo: false,
+
+  setProjectName: (name) =>
+    set({ projectName: name.trim() || 'Untitled structure' }),
 
   pushHistory: () => {
     const { nodes, edges, constraints, edgeProfile, historyPast } = get();
@@ -942,6 +951,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         constraints: [],
         ...slice,
         kerf: kerf ?? s.kerf,
+        // Hand-off starts a fresh project; the next autosave creates it.
+        projectId: null,
+        projectName: 'Imported design',
         selection: null,
         selectedEdgeIds: [],
         connectFromId: null,

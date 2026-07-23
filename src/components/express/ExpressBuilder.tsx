@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useAppStore } from '../../store/appStore';
 import { useExpressStore } from '../../store/expressStore';
@@ -29,6 +29,8 @@ import { ExpressBOM } from './ExpressBOM';
 import { ProfilesPanel } from './ProfilesPanel';
 import { TemplateMoreMenu } from './TemplateMoreMenu';
 import { ErrorBoundary, CanvasErrorFallback } from '../ErrorBoundary';
+import { HistoryPanel } from '../HistoryPanel';
+import { startAutosave } from '../../store/autosave';
 import '../../styles/express.css';
 
 const featuredTemplates = TEMPLATES.filter((t) => t.featured);
@@ -61,6 +63,11 @@ export function ExpressBuilder() {
   const rightWidth = useLayoutStore((s) => s.rightWidth);
 
   const [busy, setBusy] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    startAutosave();
+  }, []);
 
   const template = getTemplate(templateId);
   const params = paramsByTemplate[templateId];
@@ -237,6 +244,13 @@ export function ExpressBuilder() {
           <h1 className="toolbar-brand">Express Builder</h1>
           <div className="toolbar-spacer" />
           <div className="toolbar-group">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              title="Version history — autosaves and checkpoints"
+            >
+              History
+            </button>
             <button
               type="button"
               onClick={handleSave}
@@ -419,6 +433,11 @@ export function ExpressBuilder() {
         <PanelResizer side="left" />
         <PanelResizer side="right" />
       </div>
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        kind="express"
+      />
     </div>
   );
 }

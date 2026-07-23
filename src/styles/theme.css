@@ -868,6 +868,82 @@ body.resizing-col canvas {
   margin-top: 20px;
 }
 
+/* ---- Version history (Fusion-style) ---- */
+
+.toolbar-project-name {
+  width: 150px;
+  height: 24px;
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+.history-modal {
+  width: 420px;
+  max-width: calc(100vw - 48px);
+}
+
+.history-checkpoint {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.history-checkpoint input {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #e2e2e2);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.history-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.history-badge {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.history-badge.auto {
+  color: var(--text-muted);
+}
+
+.history-badge.manual {
+  font-weight: 600;
+}
+
+.history-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.history-row button {
+  flex-shrink: 0;
+  padding: 3px 10px;
+}
+
 .help-content {
   font-size: 12px;
   line-height: 1.6;

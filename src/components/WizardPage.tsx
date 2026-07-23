@@ -1,6 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../store/appStore';
+import {
+  deleteProject,
+  listProjects,
+  listVersions,
+  relativeTime,
+  type ProjectMeta,
+} from '../core/versionStore';
 import '../styles/wizard.css';
+
+/** Pure fetch of the recent-projects rows; state updates live in callbacks. */
+async function fetchRecent(): Promise<{ meta: ProjectMeta; when: string }[]> {
+  const projects = await listProjects();
+  const now = Date.now();
+  return projects.map((meta) => ({
+    meta,
+    when: relativeTime(meta.updatedAt, now),
+  }));
+}
 
 function ExpressArt() {
   return (
@@ -85,6 +102,19 @@ function AdvancedArt() {
 export function WizardPage() {
   const setView = useAppStore((s) => s.setView);
   const [busy, setBusy] = useState(false);
+  const [recent, setRecent] = useState<
+    { meta: ProjectMeta; when: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRecent().then((rows) => {
+      if (!cancelled) setRecent(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleOpen = async () => {
     setBusy(true);
@@ -97,6 +127,30 @@ export function WizardPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleOpenRecent = async (project: ProjectMeta) => {
+    setBusy(true);
+    try {
+      const versions = await listVersions(project.id);
+      const latest = versions[0];
+      if (!latest) {
+        alert('This project has no saved versions yet.');
+        return;
+      }
+      // Lazy — restoring pulls in the builder stores.
+      const { restoreVersion } = await import('../store/autosave');
+      await restoreVersion(latest);
+      setView(project.kind === 'structure' ? 'advanced' : 'express');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteRecent = async (project: ProjectMeta) => {
+    if (!confirm(`Delete "${project.name}" and all its versions?`)) return;
+    await deleteProject(project.id);
+    setRecent(await fetchRecent());
   };
 
   return (
@@ -167,6 +221,38 @@ export function WizardPage() {
             </span>
           </button>
         </div>
+
+        {recent.length > 0 && (
+          <div className="wizard-recent">
+            <p className="wizard-recent-title">Recent projects</p>
+            {recent.map(({ meta, when }) => (
+              <div key={meta.id} className="wizard-recent-row">
+                <button
+                  type="button"
+                  className="wizard-recent-open"
+                  onClick={() => void handleOpenRecent(meta)}
+                  disabled={busy}
+                >
+                  <span className="wizard-recent-name">{meta.name}</span>
+                  <span
+                    className={`wizard-recent-kind ${meta.kind === 'structure' ? 'advanced' : 'express'}`}
+                  >
+                    {meta.kind === 'structure' ? 'Advanced' : 'Express'}
+                  </span>
+                  <span className="wizard-recent-time">{when}</span>
+                </button>
+                <button
+                  type="button"
+                  className="wizard-recent-delete"
+                  onClick={() => void handleDeleteRecent(meta)}
+                  title="Delete project and all its versions"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="wizard-open">
           <span>Already have a project?</span>
