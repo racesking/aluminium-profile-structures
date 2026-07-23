@@ -7,6 +7,13 @@ import {
   sectionOutline,
   type ProfileShape,
 } from '../core/profileShapes';
+import {
+  computeBracketPlacements,
+  computeJointTreatments,
+  type BracketPlacement,
+  type EdgeTreatment,
+} from '../core/jointVisuals';
+import type { Vec3 } from '../core/types';
 
 /** Build the extruded member geometry: cross-section in XZ, length along Y. */
 function buildMemberGeometry(
@@ -41,6 +48,8 @@ function buildMemberGeometry(
   return geo;
 }
 
+const NO_TREATMENT: EdgeTreatment = { from: { trim: 0 }, to: { trim: 0 } };
+
 function ProfileEdge({
   edgeId,
   from,
@@ -49,17 +58,22 @@ function ProfileEdge({
   shape,
   sectionMm,
   color,
+  treatment,
 }: {
   edgeId: string;
-  from: [number, number, number];
-  to: [number, number, number];
+  from: Vec3;
+  to: Vec3;
   selected: boolean;
   shape: ProfileShape;
   sectionMm: number;
   color: string;
+  treatment: EdgeTreatment;
 }) {
   const setEdgeSelection = useStructureStore((s) => s.setEdgeSelection);
   const secondEdgeId = useStructureStore((s) => s.secondEdgeId);
+
+  const trimFrom = treatment.from.trim;
+  const trimTo = treatment.to.trim;
 
   const frame = useMemo(() => {
     const start = new THREE.Vector3(...from);
@@ -67,8 +81,14 @@ function ProfileEdge({
     const axis = new THREE.Vector3().subVectors(end, start);
     const len = axis.length();
     if (len < 1e-6) return null;
-    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
     axis.normalize();
+    // The rendered segment spans [from + axis·trimFrom, to − axis·trimTo]
+    // (negative trims extend the member for mitre corners).
+    const renderLength = Math.max(1, len - trimFrom - trimTo);
+    const mid = new THREE.Vector3()
+      .addVectors(start, end)
+      .multiplyScalar(0.5)
+      .addScaledVector(axis, (trimFrom - trimTo) / 2);
     // Stable orientation frame: roll the cross-section consistently instead of
     // the arbitrary twist setFromUnitVectors would give. Axis-aligned members
     // get axis-aligned faces (what you want for T/L/Bosch profiles).
@@ -84,16 +104,40 @@ function ProfileEdge({
     return {
       position: [mid.x, mid.y, mid.z] as [number, number, number],
       quaternion,
-      length: len,
+      length: renderLength,
     };
-  }, [from, to]);
+  }, [from, to, trimFrom, trimTo]);
 
   const geometry = useMemo(
-    () =>
-      frame ? buildMemberGeometry(shape, sectionMm, frame.length) : null,
+    () => (frame ? buildMemberGeometry(shape, sectionMm, frame.length) : null),
     [shape, sectionMm, frame],
   );
   useEffect(() => () => geometry?.dispose(), [geometry]);
+
+  // Mitre cuts: world-space clipping planes through the shared node, keeping
+  // this member's half of the corner.
+  const clipFrom = treatment.from.clipNormal;
+  const clipTo = treatment.to.clipNormal;
+  const clippingPlanes = useMemo(() => {
+    const planes: THREE.Plane[] = [];
+    if (clipFrom) {
+      planes.push(
+        new THREE.Plane().setFromNormalAndCoplanarPoint(
+          new THREE.Vector3(...clipFrom),
+          new THREE.Vector3(...from),
+        ),
+      );
+    }
+    if (clipTo) {
+      planes.push(
+        new THREE.Plane().setFromNormalAndCoplanarPoint(
+          new THREE.Vector3(...clipTo),
+          new THREE.Vector3(...to),
+        ),
+      );
+    }
+    return planes;
+  }, [clipFrom, clipTo, from, to]);
 
   if (!frame || !geometry) return null;
 
@@ -114,8 +158,69 @@ function ProfileEdge({
         metalness={0.72}
         roughness={0.34}
         envMapIntensity={0.9}
+        clippingPlanes={clippingPlanes.length > 0 ? clippingPlanes : null}
+        side={clippingPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide}
       />
     </mesh>
+  );
+}
+
+/** A steel angle bracket sitting in the corner between two members. */
+function BracketMesh({ placement }: { placement: BracketPlacement }) {
+  const parts = useMemo(() => {
+    const u = new THREE.Vector3(...placement.legA); // butting member dir
+    const v = new THREE.Vector3(...placement.legB); // through member dir
+    // Orthonormal corner frame (guard near-parallel, filtered upstream).
+    const vPerp = v.clone().addScaledVector(u, -u.dot(v));
+    if (vPerp.lengthSq() < 1e-9) return null;
+    vPerp.normalize();
+    const n = new THREE.Vector3().crossVectors(u, vPerp);
+    const quaternion = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().makeBasis(u, vPerp, n),
+    );
+    const P = new THREE.Vector3(...placement.position);
+    const sA = placement.sectionA; // butting section (thickness across vPerp)
+    const sB = placement.sectionB; // through section (thickness across u)
+    const minS = Math.min(sA, sB);
+    const L = Math.min(45, Math.max(8, minS * 0.9));
+    const t = Math.max(2.5, minS * 0.12);
+    const w = Math.max(6, minS * 0.8);
+    // Leg on the butting member's face + leg on the through member's face.
+    const leg1 = {
+      position: P.clone()
+        .addScaledVector(u, sB / 2 + L / 2)
+        .addScaledVector(vPerp, sA / 2 + t / 2),
+      size: [L, t, w] as [number, number, number],
+    };
+    const leg2 = {
+      position: P.clone()
+        .addScaledVector(u, sB / 2 + t / 2)
+        .addScaledVector(vPerp, sA / 2 + L / 2),
+      size: [t, L, w] as [number, number, number],
+    };
+    return { quaternion, legs: [leg1, leg2] };
+  }, [placement]);
+
+  if (!parts) return null;
+  return (
+    <group>
+      {parts.legs.map((leg, i) => (
+        <mesh
+          key={i}
+          position={leg.position}
+          quaternion={parts.quaternion}
+          raycast={() => {}}
+        >
+          <boxGeometry args={leg.size} />
+          <meshStandardMaterial
+            color="#565b63"
+            metalness={0.6}
+            roughness={0.45}
+            envMapIntensity={0.7}
+          />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -123,6 +228,8 @@ export function StructureLines() {
   const nodes = useStructureStore((s) => s.nodes);
   const edges = useStructureStore((s) => s.edges);
   const profiles = useStructureStore((s) => s.profiles);
+  const edgeProfile = useStructureStore((s) => s.edgeProfile);
+  const jointId = useStructureStore((s) => s.jointId);
   const getEdgeProfile = useStructureStore((s) => s.getEdgeProfile);
   const selectedEdgeIds = useStructureStore((s) => s.selectedEdgeIds);
   const secondEdgeId = useStructureStore((s) => s.secondEdgeId);
@@ -134,6 +241,25 @@ export function StructureLines() {
     });
     return map;
   }, [profiles]);
+
+  const sectionOf = useMemo(() => {
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    return (edgeId: string) =>
+      (byId.get(edgeProfile[edgeId] ?? '') ?? profiles[0]).sectionMm;
+  }, [profiles, edgeProfile]);
+
+  const treatments = useMemo(
+    () => computeJointTreatments(nodes, edges, sectionOf, jointId),
+    [nodes, edges, sectionOf, jointId],
+  );
+
+  const brackets = useMemo(
+    () =>
+      jointId === 'bracket'
+        ? computeBracketPlacements(nodes, edges, sectionOf)
+        : [],
+    [jointId, nodes, edges, sectionOf],
+  );
 
   return (
     <group>
@@ -152,12 +278,16 @@ export function StructureLines() {
             shape={profileShapeOf(profile)}
             sectionMm={profile.sectionMm}
             color={color}
+            treatment={treatments.get(edge.id) ?? NO_TREATMENT}
             selected={
               selectedEdgeIds.includes(edge.id) || secondEdgeId === edge.id
             }
           />
         );
       })}
+      {brackets.map((p, i) => (
+        <BracketMesh key={i} placement={p} />
+      ))}
     </group>
   );
 }

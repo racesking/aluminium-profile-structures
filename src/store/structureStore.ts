@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import { createBoxFrame } from '../core/boxFrame';
+import { DEFAULT_JOINT_ID, getJoint } from '../core/joints';
 import {
   alignEdgeParallel,
   alignEdgePerpendicular,
@@ -80,6 +81,8 @@ type StructureState = {
   /** profileId → stock bars. */
   stockByProfile: Record<string, StockBar[]>;
   kerf: number;
+  /** Joint type used for rendering members at shared nodes. */
+  jointId: string;
   snap: number;
   gridCellSize: number;
   snapToGrid: boolean;
@@ -117,6 +120,7 @@ type StructureState = {
   setGridCellSize: (size: number) => void;
   setSnapToGrid: (on: boolean) => void;
   setKerf: (kerf: number) => void;
+  setJoint: (id: string) => void;
   setWorkPlane: (plane: WorkPlane) => void;
   setAxisLock: (axis: AxisLock) => void;
   setToolMode: (mode: ToolMode) => void;
@@ -271,6 +275,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   constraints: [],
   ...defaultProfileSlice(),
   kerf: 0,
+  jointId: DEFAULT_JOINT_ID,
   snap: 5,
   gridCellSize: 5,
   snapToGrid: true,
@@ -404,6 +409,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     set({ gridCellSize: Math.max(0.1, Math.min(10000, size)) }),
   setSnapToGrid: (on) => set({ snapToGrid: on }),
   setKerf: (kerf) => set({ kerf: Math.max(0, kerf) }),
+  setJoint: (id) => set({ jointId: getJoint(id).id }),
   setWorkPlane: (plane) => set({ workPlane: plane }),
   setAxisLock: (axis) => set({ axisLock: axis }),
   setToolMode: (mode) =>
@@ -1023,6 +1029,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         constraints: data.constraints ?? [],
         ...migrateProfileSlice(data),
         kerf: data.kerf ?? 0,
+        jointId: getJoint(data.jointId ?? DEFAULT_JOINT_ID).id,
         snap: data.snap ?? 5,
         workPlane: data.workPlane ?? 'xz',
         selection: null,
@@ -1052,6 +1059,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       edgeProfile,
       stockByProfile,
       kerf,
+      jointId,
       snap,
       gridCellSize,
       snapToGrid,
@@ -1070,6 +1078,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       edgeProfile: { ...edgeProfile },
       stockByProfile: stockClone,
       kerf,
+      jointId,
       snap,
       gridCellSize,
       snapToGrid,
@@ -1085,6 +1094,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
       constraints: payload.constraints ?? [],
       ...migrateProfileSlice(payload),
       kerf: payload.kerf ?? 0,
+      jointId: getJoint(payload.jointId ?? DEFAULT_JOINT_ID).id,
       snap: payload.snap ?? 5,
       gridCellSize: payload.gridCellSize ?? 5,
       snapToGrid: payload.snapToGrid ?? true,

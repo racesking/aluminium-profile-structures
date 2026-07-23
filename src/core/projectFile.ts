@@ -31,6 +31,8 @@ export type StructurePayload = {
   stock?: StockBar[];
 
   kerf: number;
+  /** Joint type rendered at shared nodes; optional for older projects. */
+  jointId?: string;
   snap: number;
   gridCellSize: number;
   snapToGrid: boolean;
@@ -230,6 +232,7 @@ const StructurePayloadSchema = z
     profile: ProfileSchema.optional(),
     stock: z.array(StockBarSchema).optional(),
     kerf: z.number(),
+    jointId: z.string().optional(),
     snap: z.number(),
     gridCellSize: z.number(),
     snapToGrid: z.boolean(),

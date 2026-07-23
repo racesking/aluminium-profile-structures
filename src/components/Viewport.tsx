@@ -283,6 +283,7 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
             gl={{ antialias: true, alpha: false }}
             onCreated={({ gl, scene }) => {
               gl.setClearColor('#f4f4f4');
+              gl.localClippingEnabled = true; // mitre cuts use clipping planes
               attachEnvironment(gl, scene);
             }}
             onPointerMissed={handleMissed}

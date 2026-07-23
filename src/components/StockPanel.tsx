@@ -8,6 +8,7 @@ import {
   isProfileShape,
   profileShapeOf,
 } from '../core/profileShapes';
+import { JOINTS, getJoint } from '../core/joints';
 import type { StockBar } from '../core/types';
 
 function ProfileStockBlock({
@@ -94,9 +95,11 @@ export function StockPanel() {
   const edgeProfile = useStructureStore((s) => s.edgeProfile);
   const stockByProfile = useStructureStore((s) => s.stockByProfile);
   const kerf = useStructureStore((s) => s.kerf);
+  const jointId = useStructureStore((s) => s.jointId);
   const cuttingResult = useStructureStore((s) => s.cuttingResult);
 
   const setKerf = useStructureStore((s) => s.setKerf);
+  const setJoint = useStructureStore((s) => s.setJoint);
   const addProfile = useStructureStore((s) => s.addProfile);
   const removeProfile = useStructureStore((s) => s.removeProfile);
   const updateProfile = useStructureStore((s) => s.updateProfile);
@@ -220,6 +223,23 @@ export function StockPanel() {
 
         <div className="section">
           <p className="section-title">Cut settings</p>
+          <div className="field">
+            <label>Joint type</label>
+            <select
+              value={jointId}
+              onChange={(e) => setJoint(e.target.value)}
+              title="How members meet at shared nodes"
+            >
+              {JOINTS.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="hint hint-compact" style={{ marginTop: 0 }}>
+            {getJoint(jointId).short}
+          </p>
           <div className="field">
             <label>Kerf / blade (mm)</label>
             <input
