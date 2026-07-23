@@ -43,6 +43,8 @@ Package name is `beam-calculator`; disk folder is `Beam Calculator`; product/Pag
 
 Before pushing, run typecheck + lint + test + build (CI gates on all of them). There is **one pre-existing lint warning** in `StructureScene.tsx` (`useCallback` dep) — not from your change unless the count grows.
 
+**Strict react-hooks v6 lint rules to design around** (they reject common patterns as *errors*): no synchronous `setState` reachable from a `useEffect` body (fetch with a pure async fn + `.then(setState)` and a `cancelled` flag); no `Date.now()`/impure calls during render (compute timestamps when data loads); no mutating hook-returned objects like `useThree().scene` (do it in Canvas `onCreated` instead).
+
 ---
 
 ## Architecture
@@ -116,6 +118,9 @@ These are the invariants that aren't obvious from one file. **Violating them cau
 | `duplicate.ts` | `connectedEdgeGroup` (flood-fill, despite the name uses LIFO/DFS), `duplicateEdges` (deep-copy edges+nodes+internal constraints at an offset, fresh uuids). | Only constraints whose **both** edges are in the selection are cloned. Relies on internally consistent input (non-null assertions on the node map). |
 | `workPlane.ts` | **Only three.js file in core/.** `makeWorkPlane`, `makeCameraPlane`, `raycastToPlane`, `applyAxisLock`, `WORK_PLANE_LABELS`. | `workPlaneNormal('free')` falls through to the XZ normal — for true free placement use `makeCameraPlane`. Keep three.js isolated here so the rest of core stays testable. |
 | `visualScale.ts` | Section→render radius, label parsing, `getStructureBounds`, `cameraDistanceForSpan`. | `parseSectionSizeMm` reads only the FIRST number (`40x80`→40). Empty structure → span 100 / center origin. |
+| `profileShapes.ts` | `ProfileShape` (`square\|round\|angle\|tee\|bosch`), `PROFILE_SHAPES`, `isProfileShape`, `profileShapeOf` (legacy → square), `sectionOutline` (pure 2D contours, mm, origin-centered), `contourArea`. | Outer contours wind CCW, holes CW — the 3D extruder relies on it. Tiny sections drop their holes (solid). `ProfileDef.shape` is OPTIONAL — always read via `profileShapeOf`. |
+| `jointVisuals.ts` | `computeJointTreatments` (per-edge-end `trim` + mitre `clipNormal` from the node graph), `computeBracketPlacements`. Drives realistic joint rendering in Advanced. | Through member at a node = largest section (ties by edge order). Negative trim = extend (mitre). Collinear splices are left touching. Mitre only for exactly-2-member nodes; ≥3 falls back to butt rule. Visual only — cut-length math stays in `joints.ts`. |
+| `versionStore.ts` | IndexedDB layer for Fusion-style projects: `ProjectMeta`/`VersionRecord`, list/put/delete project, list/add/get version, `pruneAutosaves` (keep 50), `pruneCandidates` + `relativeTime` (pure, tested). | Every function degrades to no-op/empty without IndexedDB. Labeled/manual versions are never pruned. DB `profile-builder-projects`, stores `projects` + `versions` (index `byProject`). |
 | `projectFile.ts` | On-disk `.json` format + zod schemas + File System Access API (download/upload fallback). `StructurePayload`, `ExpressPayload`, `ProjectFile`, `parseProjectFile`. | `.passthrough()` keeps unknown keys. `version` is informational, not gated. **v1↔v2 fields coexist; the actual migration lives in the stores' `hydrateFromPayload`, not here.** Cancelled fallback-`<input>` open never resolves (documented "harmless"). |
 | `bomExport.ts` | `structureToExportInput` (Advanced geom → BOM model, groups members into lettered **Parts** A,B,… by distinct profile+length), `bomToCsv`, `bomToPrintHtml`. | Edges with missing endpoints or length rounding to 0 are silently dropped. "Roles" in exports are synthetic Part labels, not semantic roles. |
 | `drawing.ts` | Pure SVG isometric drawing: `iso` projection, `structureDrawingSvg` (member lines + W/D/H dimension lines + numbered balloon callouts). | Fixed width 720, dynamic height. No depth sorting/occlusion. `items[]` order == balloon numbering (parts list stays consistent). |
@@ -134,6 +139,8 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 
 `store/projectIO.ts` is the only place that assembles the `ProjectFile` envelope (`app:'profile-builder'`, `version:1`, ISO `savedAt`). `openProjectAndRoute` hydrates the matching store **and** routes the view. Lazy-imported by the wizard.
 
+`store/autosave.ts` — the Fusion-style autosave engine. `startAutosave()` (idempotent; called from both builders' mount effects) subscribes to both builder stores and, 1.5 s after the last change, writes a version to IndexedDB (`core/versionStore`), creating the project record on first save and pruning old autosaves. Skips when the (name + payload JSON) signature is unchanged, so selection-only changes don't spam versions. Also: `saveCheckpoint` (manual, always writes), `restoreVersion` (autosaves current state first, then hydrates), `renameProject`, and `restoreLastStructureProject` — reload continuity for Advanced (reopens the last project when mounting empty; Express doesn't need it, its full state lives in localStorage). Express project identity lives in `localStorage['profile-builder-express-project']`; Advanced's in the store (`projectId`/`projectName`) mirrored to `localStorage['profile-builder-last-project']`.
+
 ### structureStore specifics (read before editing it)
 - **Undo/redo covers ONLY `{nodes, edges, constraints, edgeProfile}`** (deep-cloned, capped 80). It does **not** restore profiles, stock, kerf, snap settings, or selection. Mutating actions call `pushHistory()` *before* mutating. To extend coverage you must edit `HistorySnapshot` + `cloneSnapshot` + `applySnapshot` together.
 - **`cuttingResult` is invalidated (→ null) by almost every mutation** (and even some selections) so a stale optimization can't survive an edit.
@@ -141,7 +148,8 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 - `optimize()` labels pieces `M<globalIndex+1>` (global, not per-profile).
 - `exportCutList()` is **not read-only** — it lazily runs `optimize()` (mutating `cuttingResult`) when none exists.
 - Drag model: `Nodes` calls `pushHistory()` at drag start, `moveNode(..., {skipEnforce:true})` during the drag (constraints NOT enforced mid-drag), and `finishNodeDrag()` enforces once at the end.
-- `saveProject`/`getStructurePayload`/`loadProject`/`hydrateFromPayload` enumerate persisted fields **by hand** — adding a field means editing all four.
+- `saveProject`/`getStructurePayload`/`loadProject`/`hydrateFromPayload` enumerate persisted fields **by hand** — adding a field means editing all four. (`saveProject`/`loadProject` are legacy dead code — real persistence is `store/autosave.ts` → IndexedDB.)
+- Also holds `jointId` (rendering joint type, persisted in payloads) and `projectId`/`projectName` (version-store identity; NOT in payloads — `importStructure` resets them so an Express hand-off starts a fresh project).
 - `duplicateSelection`/`pasteSelection` carry profiles by **positional correspondence** between source edges and new edge ids — don't break that ordering.
 
 ---
@@ -162,7 +170,8 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 - **`Toolbar.tsx`** — tool/plane/edit/project/grid/view controls + BoxFrameDialog. `handleDrawing` builds the print HTML via `structureToExportInput` and opens a popup (silent return if blocked).
 - **`Sidebar.tsx`** — stats, selected-member length, constraint creation (∥/⊥) + active list, node-distance compare, Members/Nodes lists. `DuplicatePanel` renders here when something is selected.
 - **`StockPanel.tsx`** — profiles (name/section/color/member-count), assign-selection-to-profile, kerf, per-profile stock rows, Optimize, cut plan + waste. `Optimize` disabled until some bar has quantity>0.
-- **3D scene:** `StructureScene` (composes the group + invisible 400³ placement surface, active only in placeNode mode) → `StructureLines` (member cylinders, click = `setEdgeSelection(id, shift, alt)`), `Nodes` (spheres; drag/connect), `DimensionLabels` (HTML labels; culled to selection-only when >8 edges), `WorkPlaneVisual` (faint plane, hidden in free mode).
+- **3D scene:** `StructureScene` (composes the group + invisible 400³ placement surface, active only in placeNode mode) → `StructureLines` (members as **ExtrudeGeometry** of the profile's real cross-section — stable orientation frame, metallic material, joint trims/extensions from `jointVisuals`, mitre clipping planes, bracket meshes; click = `setEdgeSelection(id, shift, alt)`), `Nodes` (spheres; drag/connect), `DimensionLabels` (HTML labels; culled to selection-only when >8 edges), `WorkPlaneVisual` (faint plane, hidden in free mode). The Canvas `onCreated` sets `gl.localClippingEnabled = true` (mitres) and attaches a PMREM `RoomEnvironment` map (no network) for metal reflections.
+- **`HistoryPanel.tsx`** — version-history modal shared by both builders (`kind` prop). Lists autosaves/checkpoints with restore, rename, save-version. Times are computed at load, not render (react-hooks purity rules — see below).
 - **Modals/chrome:** `ContextMenu` (Translate/Copy/Paste/Select-all/Member-dimension/Help), `MemberDimensionModal`, `BoxFrameDialog` (state persists across open/close), `HelpModal` (⚠ maintained separately from the real key handler — they can drift), `PanelResizer` (writes raw px; store clamps).
 
 ### Shell
@@ -193,7 +202,9 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 | What | Where |
 |---|---|
 | Express state | `localStorage['express-builder-state']` |
-| Advanced state | `localStorage['profile-builder-project']` |
+| Advanced state | `localStorage['profile-builder-project']` (legacy, dead code) |
+| **Autosave versions + projects** | **IndexedDB `profile-builder-projects`** (via `core/versionStore` + `store/autosave`) |
+| Project identity | `localStorage['profile-builder-last-project']` (Advanced), `['profile-builder-express-project']` (Express) |
 | Settings | `localStorage['profile-builder-settings']` |
 | Panel widths | `localStorage['profile-builder-layout']` |
 | Saved projects | `.json` files on disk (File System Access API, download/upload fallback) |
