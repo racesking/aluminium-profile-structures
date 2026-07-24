@@ -160,14 +160,16 @@ export async function getVersion(id: string): Promise<VersionRecord | null> {
   }
 }
 
-export async function addVersion(record: VersionRecord): Promise<void> {
+/** @returns true when the record was actually written (storage available). */
+export async function addVersion(record: VersionRecord): Promise<boolean> {
   try {
     const db = await openDb();
     await requestAsPromise(
       db.transaction('versions', 'readwrite').objectStore('versions').put(record),
     );
+    return true;
   } catch {
-    /* storage unavailable — skip */
+    return false;
   }
 }
 

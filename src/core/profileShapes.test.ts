@@ -63,6 +63,38 @@ describe('profileShapes', () => {
     expect(area).toBeLessThan(40 * 40);
   });
 
+  it('no outline self-intersects at any typical section size', () => {
+    // Proper-crossing test between two segments (shared endpoints excluded).
+    const crosses = (
+      [ax, ay]: [number, number],
+      [bx, by]: [number, number],
+      [cx, cy]: [number, number],
+      [dx, dy]: [number, number],
+    ) => {
+      const d = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+      if (Math.abs(d) < 1e-12) return false;
+      const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / d;
+      const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / d;
+      const eps = 1e-9;
+      return t > eps && t < 1 - eps && u > eps && u < 1 - eps;
+    };
+    for (const shape of ALL) {
+      for (const size of [8, 20, 40, 45, 100]) {
+        const { outer } = sectionOutline(shape, size);
+        const n = outer.length;
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 1; j < n; j++) {
+            if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+            expect(
+              crosses(outer[i], outer[(i + 1) % n], outer[j], outer[(j + 1) % n]),
+              `${shape}@${size}: segments ${i} and ${j} cross`,
+            ).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
   it('outline scales linearly with section size', () => {
     const small = sectionOutline('tee', 20);
     const large = sectionOutline('tee', 40);

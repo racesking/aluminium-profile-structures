@@ -135,11 +135,18 @@ export function computeJointTreatments(
       if (isCollinear(a.dir, b.dir)) continue; // straight splice: nothing to cut
       const nA = norm(sub(a.dir, b.dir));
       if (!nA) continue;
+      // Extend far enough that the bisector cut spans the full cross-section
+      // even for acute corners and unequal sections: the cut reaches
+      // (section/2) / tan(θ/2) behind the node. Overshoot is harmless — the
+      // clipping plane removes it.
+      const cos = dot(a.dir, b.dir);
+      const tanHalf = Math.max(0.2, Math.sqrt((1 - cos) / (1 + cos)));
+      const ext = Math.max(a.section, b.section) / 2 / tanHalf;
       const tA = endOf(a.edgeId, a.end);
-      tA.trim = -b.section / 2;
+      tA.trim = -ext;
       tA.clipNormal = nA;
       const tB = endOf(b.edgeId, b.end);
-      tB.trim = -a.section / 2;
+      tB.trim = -ext;
       tB.clipNormal = [-nA[0], -nA[1], -nA[2]];
       continue;
     }
@@ -175,7 +182,9 @@ export function computeBracketPlacements(
     const through = pickThrough(members);
     for (const m of members) {
       if (m === through) continue;
-      if (Math.abs(dot(m.dir, through.dir)) > 0.5) continue; // not ~90°
+      // Bracket leg placement assumes a near-right angle; beyond ~±10° the
+      // legs start embedding inside the members, so skip slanted pairs.
+      if (Math.abs(dot(m.dir, through.dir)) > 0.17) continue;
       placements.push({
         position: node.position,
         legA: m.dir,

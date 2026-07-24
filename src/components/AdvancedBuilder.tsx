@@ -35,6 +35,13 @@ function KeyboardShortcuts() {
       ) {
         return;
       }
+      // While a modal (Drawing/History/Box frame/Member dimension/Help) or
+      // the marking menu is open, editing hotkeys must not reach the scene —
+      // Delete/arrows/Ctrl+Z were mutating the structure invisibly behind
+      // the overlay. Escape stays with the overlay's own close handler.
+      if (document.querySelector('.modal-overlay, .marking-list')) {
+        return;
+      }
 
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === 'z') {

@@ -8,6 +8,7 @@ import {
   type ProjectFile,
   type SaveOutcome,
 } from '../core/projectFile';
+import { startNewProject } from './autosave';
 
 function timestamp(): string {
   return new Date().toISOString();
@@ -62,9 +63,13 @@ export async function openProjectAndRoute(): Promise<OpenResult> {
 
   if (project.kind === 'express' && project.express) {
     useExpressStore.getState().hydrateFromPayload(project.express);
+    // Detach from the previously active project so autosave files the opened
+    // design into a fresh project, not the old one's version history.
+    startNewProject('express', project.name);
     useAppStore.getState().setView('express');
   } else if (project.kind === 'structure' && project.structure) {
     useStructureStore.getState().hydrateFromPayload(project.structure);
+    startNewProject('structure', project.name);
     useAppStore.getState().setView('advanced');
   } else {
     return { status: 'error', message: 'Project file is incomplete.' };

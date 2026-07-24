@@ -150,6 +150,9 @@ export function WizardPage() {
   const handleDeleteRecent = async (project: ProjectMeta) => {
     if (!confirm(`Delete "${project.name}" and all its versions?`)) return;
     await deleteProject(project.id);
+    // Clear any live references so the next autosave can't recreate it.
+    const { forgetProject } = await import('../store/autosave');
+    forgetProject(project.id);
     setRecent(await fetchRecent());
   };
 

@@ -109,7 +109,7 @@ function downloadText(filename: string, text: string): void {
 }
 
 function openViaInput(): Promise<ProjectFile | null> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json,.json';
@@ -122,11 +122,12 @@ function openViaInput(): Promise<ProjectFile | null> {
       try {
         resolve(parseProjectFile(await file.text()));
       } catch (err) {
-        resolve(Promise.reject(err));
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     };
-    // If the dialog is dismissed there is no reliable cancel event; the promise
-    // simply never resolves, which is harmless — the caller is awaiting a click.
+    // Dismissed dialog → resolve null so callers can clear their busy state
+    // (previously the promise never settled and Save/Open froze forever).
+    input.addEventListener('cancel', () => resolve(null));
     input.click();
   });
 }
@@ -169,6 +170,7 @@ export async function saveProjectFile(
 
 export async function openProjectFile(): Promise<ProjectFile | null> {
   if (supportsFsAccess() && 'showOpenFilePicker' in window) {
+    let file: File;
     try {
       const [handle] = await (
         window as unknown as {
@@ -177,14 +179,17 @@ export async function openProjectFile(): Promise<ProjectFile | null> {
           >;
         }
       ).showOpenFilePicker({ types: FILE_TYPES, multiple: false });
-      const file = await handle.getFile();
-      return parseProjectFile(await file.text());
+      file = await handle.getFile();
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return null;
       }
-      // Other failures → fall back to the input element.
+      // Picker itself unavailable/failed → fall back to the input element.
+      return openViaInput();
     }
+    // Parse errors from a successfully picked file must propagate to the
+    // caller, not silently trigger a second (gesture-less, dead) picker.
+    return parseProjectFile(await file.text());
   }
 
   return openViaInput();

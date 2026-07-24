@@ -90,11 +90,14 @@ function CameraController() {
       makeDefault
       enableDamping
       dampingFactor={0.08}
-      // Free the left mouse button for the marquee while box-selecting.
-      enableRotate={toolMode !== 'box'}
       // Fusion-style buttons: left orbits, middle pans; the right button is
-      // reserved for the marking menu and its flick gestures.
-      mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN }}
+      // reserved for the marking menu and its flick gestures. In box-select
+      // mode the LEFT button is unmapped entirely (not just rotate) so
+      // Shift+left can't pan the camera while a marquee is being drawn.
+      mouseButtons={{
+        LEFT: toolMode === 'box' ? undefined : THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.PAN,
+      }}
       minDistance={Math.max(5, span * 0.05)}
       maxDistance={Math.max(50000, span * 50)}
       target={center}
@@ -153,7 +156,8 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   // Flick gesture: right-press, drag toward a marking-menu sector, release.
   const ringActions = useRingActions();
   const rightDown = useRef<{ x: number; y: number } | null>(null);
-  const suppressMenu = useRef(false);
+  /** Ignore contextmenu events until this timestamp (consumed by a flick). */
+  const suppressUntil = useRef(0);
   const [flickToast, setFlickToast] = useState<{
     label: string;
     x: number;
@@ -167,7 +171,11 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
     const dy = e.clientY - rightDown.current.y;
     rightDown.current = null;
     if (Math.hypot(dx, dy) < 30) return; // a plain right-click → menu opens
-    suppressMenu.current = true;
+    // Time-boxed suppression (not a latching flag) so platforms that fire
+    // contextmenu on mousedown can't leak it into the NEXT right-click; also
+    // close any menu that such a platform already opened at press time.
+    suppressUntil.current = Date.now() + 400;
+    setContextMenu(null);
     const action = ringActions[flickSector(dx, dy)];
     if (action.disabled) return;
     action.run();
@@ -235,6 +243,16 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
     lastDown.current = { x: e.clientX, y: e.clientY };
     if (e.button === 2) {
       rightDown.current = { x: e.clientX, y: e.clientY };
+      // Runs AFTER the wrapper's bubbling onPointerUp (flick handler), and
+      // also when the button is released outside the viewport — so a stale
+      // press can never turn a later release into a spurious flick.
+      window.addEventListener(
+        'pointerup',
+        () => {
+          rightDown.current = null;
+        },
+        { once: true },
+      );
       return;
     }
     if (toolMode !== 'box' || e.button !== 0) return;
@@ -266,6 +284,9 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   };
 
   const handleMissed = (e: MouseEvent) => {
+    // Only a LEFT click clears — a right-click is opening the marking menu,
+    // which needs the current selection to stay alive.
+    if (e.button !== 0) return;
     // Ignore the tail of an orbit/marquee drag — only a real click clears.
     const moved = Math.hypot(e.clientX - lastDown.current.x, e.clientY - lastDown.current.y);
     if (moved > 5) return;
@@ -300,10 +321,7 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
       onPointerUp={onFlickUp}
       onContextMenu={(e) => {
         e.preventDefault();
-        if (suppressMenu.current) {
-          suppressMenu.current = false; // consumed by a flick gesture
-          return;
-        }
+        if (Date.now() < suppressUntil.current) return; // consumed by a flick
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >

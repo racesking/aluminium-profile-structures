@@ -75,6 +75,7 @@ function alignEdgeToDirection(
   edge: Edge,
   targetDir: Vec3,
   pivotId?: string,
+  pinned?: ReadonlySet<string>,
 ): Node[] {
   const from = nodes.find((n) => n.id === edge.fromId);
   const to = nodes.find((n) => n.id === edge.toId);
@@ -85,6 +86,8 @@ function alignEdgeToDirection(
 
   const pivot = pivotId ?? edge.fromId;
   const moveId = edge.fromId === pivot ? edge.toId : edge.fromId;
+  // Never reposition a node pinned by a locked member.
+  if (pinned?.has(moveId)) return nodes;
   const pivotNode = nodes.find((n) => n.id === pivot);
   if (!pivotNode) return nodes;
 
@@ -103,6 +106,7 @@ export function alignEdgeParallel(
   nodes: Node[],
   edgeA: Edge,
   edgeB: Edge,
+  pinned?: ReadonlySet<string>,
 ): Node[] {
   const shared = sharedNodeId(edgeA, edgeB);
   const dirA = shared
@@ -113,13 +117,14 @@ export function alignEdgeParallel(
     ? directionFromPivot(nodes, edgeB, shared)
     : getEdgeDirection(nodes, edgeB);
   const target = pickParallelTarget(dirA, dirB ?? dirA);
-  return alignEdgeToDirection(nodes, edgeB, target, shared ?? undefined);
+  return alignEdgeToDirection(nodes, edgeB, target, shared ?? undefined, pinned);
 }
 
 export function alignEdgePerpendicular(
   nodes: Node[],
   edgeA: Edge,
   edgeB: Edge,
+  pinned?: ReadonlySet<string>,
 ): Node[] {
   const shared = sharedNodeId(edgeA, edgeB);
   const dirA = shared
@@ -130,13 +135,14 @@ export function alignEdgePerpendicular(
     : getEdgeDirection(nodes, edgeB);
   if (!dirA || !dirB) return nodes;
   const target = perpendicularDirection(dirA, dirB);
-  return alignEdgeToDirection(nodes, edgeB, target, shared ?? undefined);
+  return alignEdgeToDirection(nodes, edgeB, target, shared ?? undefined, pinned);
 }
 
 export function enforceConstraints(
   nodes: Node[],
   edges: Edge[],
   constraints: EdgeConstraint[],
+  pinned?: ReadonlySet<string>,
 ): Node[] {
   let result = nodes;
   for (const c of constraints) {
@@ -144,9 +150,9 @@ export function enforceConstraints(
     const edgeB = edges.find((e) => e.id === c.edgeBId);
     if (!edgeA || !edgeB) continue;
     if (c.type === 'parallel') {
-      result = alignEdgeParallel(result, edgeA, edgeB);
+      result = alignEdgeParallel(result, edgeA, edgeB, pinned);
     } else {
-      result = alignEdgePerpendicular(result, edgeA, edgeB);
+      result = alignEdgePerpendicular(result, edgeA, edgeB, pinned);
     }
   }
   return result;

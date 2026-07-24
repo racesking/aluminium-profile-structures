@@ -55,7 +55,6 @@ import type {
   WorkPlane,
 } from '../core/types';
 
-const STORAGE_KEY = 'profile-builder-project';
 const MAX_HISTORY = 80;
 
 function cloneSnapshot(
@@ -63,12 +62,14 @@ function cloneSnapshot(
   edges: { id: string; fromId: string; toId: string }[],
   constraints: EdgeConstraint[],
   edgeProfile: Record<string, string>,
+  lockedEdgeIds: string[],
 ): HistorySnapshot {
   return {
     nodes: nodes.map((n) => ({ ...n, position: [...n.position] as Vec3 })),
     edges: edges.map((e) => ({ ...e })),
     constraints: constraints.map((c) => ({ ...c })),
     edgeProfile: { ...edgeProfile },
+    lockedEdgeIds: [...lockedEdgeIds],
   };
 }
 
@@ -116,6 +117,8 @@ type StructureState = {
 
   /** Lock every selected member, or unlock them if all are already locked. */
   toggleLockSelection: () => void;
+  /** True when the node belongs to a locked member (pinned in place). */
+  isNodeLocked: (nodeId: string) => boolean;
   getEdgeProfileId: (edgeId: string) => string;
   getEdgeProfile: (edgeId: string) => ProfileDef;
   addProfile: () => void;
@@ -194,8 +197,6 @@ type StructureState = {
   optimize: () => void;
   clearCuttingResult: () => void;
 
-  saveProject: () => void;
-  loadProject: () => boolean;
   getStructurePayload: () => StructurePayload;
   hydrateFromPayload: (payload: StructurePayload) => void;
   exportCutList: () => string;
@@ -252,9 +253,16 @@ function migrateProfileSlice(data: {
             }))
           : defaultStockBars();
     }
+    // Drop edge→profile assignments that point at profiles which no longer
+    // exist, so stale ids can't round-trip through saved files.
+    const valid = new Set(profiles.map((p) => p.id));
+    const edgeProfile: Record<string, string> = {};
+    for (const [edgeId, pid] of Object.entries(data.edgeProfile ?? {})) {
+      if (valid.has(pid)) edgeProfile[edgeId] = pid;
+    }
     return {
       profiles,
-      edgeProfile: data.edgeProfile ?? {},
+      edgeProfile,
       stockByProfile,
     };
   }
@@ -296,6 +304,7 @@ function applySnapshot(snapshot: HistorySnapshot): Partial<StructureState> {
     edges: snapshot.edges,
     constraints: snapshot.constraints,
     edgeProfile: { ...snapshot.edgeProfile },
+    lockedEdgeIds: [...snapshot.lockedEdgeIds],
     cuttingResult: null,
   };
 }
@@ -334,8 +343,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     set({ projectName: name.trim() || 'Untitled structure' }),
 
   pushHistory: () => {
-    const { nodes, edges, constraints, edgeProfile, historyPast } = get();
-    const snap = cloneSnapshot(nodes, edges, constraints, edgeProfile);
+    const { nodes, edges, constraints, edgeProfile, lockedEdgeIds, historyPast } =
+      get();
+    const snap = cloneSnapshot(nodes, edges, constraints, edgeProfile, lockedEdgeIds);
     const past = [...historyPast, snap].slice(-MAX_HISTORY);
     set({
       historyPast: past,
@@ -346,9 +356,17 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   undo: () => {
-    const { historyPast, historyFuture, nodes, edges, constraints, edgeProfile } = get();
+    const {
+      historyPast,
+      historyFuture,
+      nodes,
+      edges,
+      constraints,
+      edgeProfile,
+      lockedEdgeIds,
+    } = get();
     if (historyPast.length === 0) return;
-    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile);
+    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile, lockedEdgeIds);
     const past = [...historyPast];
     const prev = past.pop()!;
     set({
@@ -362,9 +380,17 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   redo: () => {
-    const { historyFuture, historyPast, nodes, edges, constraints, edgeProfile } = get();
+    const {
+      historyFuture,
+      historyPast,
+      nodes,
+      edges,
+      constraints,
+      edgeProfile,
+      lockedEdgeIds,
+    } = get();
     if (historyFuture.length === 0) return;
-    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile);
+    const current = cloneSnapshot(nodes, edges, constraints, edgeProfile, lockedEdgeIds);
     const future = [...historyFuture];
     const next = future.shift()!;
     const past = [...historyPast, current];
@@ -393,9 +419,19 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     });
   },
 
+  isNodeLocked: (nodeId) => {
+    const { edges, lockedEdgeIds } = get();
+    return (
+      lockedEdgeIds.length > 0 && lockedNodeIds(edges, lockedEdgeIds).has(nodeId)
+    );
+  },
+
   getEdgeProfileId: (edgeId) => {
     const { edgeProfile, profiles } = get();
-    return edgeProfile[edgeId] ?? profiles[0].id;
+    const id = edgeProfile[edgeId];
+    // A dangling id (e.g. undo restored an assignment to a removed profile)
+    // falls back to the first profile instead of leaking into consumers.
+    return id && profiles.some((p) => p.id === id) ? id : profiles[0].id;
   },
   getEdgeProfile: (edgeId) => {
     const { profiles } = get();
@@ -445,7 +481,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
             }
           : p,
       ),
-      cuttingResult: null,
+      // Only a section change affects cut math — renaming or recoloring a
+      // profile must not wipe an optimized cut plan.
+      cuttingResult: patch.sectionMm !== undefined ? null : s.cuttingResult,
     })),
   assignSelectedToProfile: (profileId) => {
     const ids = getActiveEdgeIds(get().selection, get().selectedEdgeIds);
@@ -637,7 +675,12 @@ export const useStructureStore = create<StructureState>((set, get) => ({
           : n,
       );
       if (s.constraints.length > 0) {
-        nodes = enforceConstraints(nodes, s.edges, s.constraints);
+        nodes = enforceConstraints(
+          nodes,
+          s.edges,
+          s.constraints,
+          lockedNodeIds(s.edges, s.lockedEdgeIds),
+        );
       }
       return { nodes, cuttingResult: null };
     });
@@ -752,16 +795,26 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         n.id === id ? { ...n, position: snapped } : n,
       );
       if (!options?.skipEnforce && s.constraints.length > 0) {
-        nodes = enforceConstraints(nodes, s.edges, s.constraints);
+        nodes = enforceConstraints(
+          nodes,
+          s.edges,
+          s.constraints,
+          lockedNodeIds(s.edges, s.lockedEdgeIds),
+        );
       }
       return { nodes, cuttingResult: null };
     });
   },
 
   finishNodeDrag: () => {
-    const { nodes, edges, constraints } = get();
+    const { nodes, edges, constraints, lockedEdgeIds } = get();
     if (constraints.length === 0) return;
-    const enforced = enforceConstraints(nodes, edges, constraints);
+    const enforced = enforceConstraints(
+      nodes,
+      edges,
+      constraints,
+      lockedNodeIds(edges, lockedEdgeIds),
+    );
     set({ nodes: enforced });
   },
 
@@ -871,7 +924,12 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     if (lockedNodeIds(edges, lockedEdgeIds).has(edge.toId)) return;
     get().pushHistory();
     let newNodes = setEdgeLength(nodes, edge.fromId, edge.toId, length, 'to');
-    newNodes = enforceConstraints(newNodes, edges, constraints);
+    newNodes = enforceConstraints(
+      newNodes,
+      edges,
+      constraints,
+      lockedNodeIds(edges, lockedEdgeIds),
+    );
     set({ nodes: newNodes, cuttingResult: null });
   },
 
@@ -890,7 +948,13 @@ export const useStructureStore = create<StructureState>((set, get) => ({
 
   addConstraintParallel: (edgeAId, edgeBId) => {
     if (edgeAId === edgeBId) return;
-    const { edges, nodes, constraints } = get();
+    const { edges, nodes, constraints, lockedEdgeIds } = get();
+    // The B side is the one that moves — never a locked member. Swap the pair
+    // when B is locked; refuse entirely when both sides are locked.
+    if (lockedEdgeIds.includes(edgeBId)) {
+      if (lockedEdgeIds.includes(edgeAId)) return;
+      [edgeAId, edgeBId] = [edgeBId, edgeAId];
+    }
     const edgeA = edges.find((e) => e.id === edgeAId);
     const edgeB = edges.find((e) => e.id === edgeBId);
     if (!edgeA || !edgeB) return;
@@ -907,13 +971,23 @@ export const useStructureStore = create<StructureState>((set, get) => ({
           ...constraints,
           { id: uuid(), edgeAId, edgeBId, type: 'parallel' as const },
         ];
-    const newNodes = alignEdgeParallel(nodes, edgeA, edgeB);
+    const newNodes = alignEdgeParallel(
+      nodes,
+      edgeA,
+      edgeB,
+      lockedNodeIds(edges, lockedEdgeIds),
+    );
     set({ nodes: newNodes, constraints: newConstraints, cuttingResult: null });
   },
 
   addConstraintPerpendicular: (edgeAId, edgeBId) => {
     if (edgeAId === edgeBId) return;
-    const { edges, nodes, constraints } = get();
+    const { edges, nodes, constraints, lockedEdgeIds } = get();
+    // Same locked-member rule as parallel: B moves, so B must be unlocked.
+    if (lockedEdgeIds.includes(edgeBId)) {
+      if (lockedEdgeIds.includes(edgeAId)) return;
+      [edgeAId, edgeBId] = [edgeBId, edgeAId];
+    }
     const edgeA = edges.find((e) => e.id === edgeAId);
     const edgeB = edges.find((e) => e.id === edgeBId);
     if (!edgeA || !edgeB) return;
@@ -930,7 +1004,12 @@ export const useStructureStore = create<StructureState>((set, get) => ({
           ...constraints,
           { id: uuid(), edgeAId, edgeBId, type: 'perpendicular' as const },
         ];
-    const newNodes = alignEdgePerpendicular(nodes, edgeA, edgeB);
+    const newNodes = alignEdgePerpendicular(
+      nodes,
+      edgeA,
+      edgeB,
+      lockedNodeIds(edges, lockedEdgeIds),
+    );
     set({ nodes: newNodes, constraints: newConstraints, cuttingResult: null });
   },
 
@@ -1038,11 +1117,15 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   optimize: () => {
     const { nodes, edges, profiles, edgeProfile, stockByProfile, kerf } = get();
     const fallbackId = profiles[0].id;
+    const validIds = new Set(profiles.map((p) => p.id));
     // Group edges by their assigned profile, preserving member numbering (M<i>)
-    // across the whole structure so labels stay stable.
+    // across the whole structure so labels stay stable. Dangling profile ids
+    // fall back to the first profile — a member must never silently vanish
+    // from the cut plan.
     const piecesByProfile = new Map<string, CutPiece[]>();
     edges.forEach((e, i) => {
-      const pid = edgeProfile[e.id] ?? fallbackId;
+      const raw = edgeProfile[e.id];
+      const pid = raw && validIds.has(raw) ? raw : fallbackId;
       const list = piecesByProfile.get(pid) ?? [];
       list.push({
         edgeId: e.id,
@@ -1066,72 +1149,6 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   clearCuttingResult: () => set({ cuttingResult: null }),
-
-  saveProject: () => {
-    const {
-      nodes,
-      edges,
-      constraints,
-      profiles,
-      edgeProfile,
-      stockByProfile,
-      kerf,
-      snap,
-      workPlane,
-      duplicateOffset,
-      gridCellSize,
-      snapToGrid,
-    } = get();
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        nodes,
-        edges,
-        constraints,
-        profiles,
-        edgeProfile,
-        stockByProfile,
-        kerf,
-        snap,
-        workPlane,
-        duplicateOffset,
-        gridCellSize,
-        snapToGrid,
-      }),
-    );
-  },
-
-  loadProject: () => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
-    try {
-      const data = JSON.parse(raw);
-      set({
-        nodes: data.nodes ?? [],
-        edges: data.edges ?? [],
-        constraints: data.constraints ?? [],
-        ...migrateProfileSlice(data),
-        kerf: data.kerf ?? 0,
-        jointId: getJoint(data.jointId ?? DEFAULT_JOINT_ID).id,
-        snap: data.snap ?? 5,
-        workPlane: data.workPlane ?? 'xz',
-        selection: null,
-        selectedEdgeIds: [],
-        secondEdgeId: null,
-        duplicateOffset: data.duplicateOffset ?? [100, 0, 0],
-        gridCellSize: data.gridCellSize ?? 5,
-        snapToGrid: data.snapToGrid ?? true,
-        cuttingResult: null,
-        historyPast: [],
-        historyFuture: [],
-        canUndo: false,
-        canRedo: false,
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  },
 
   getStructurePayload: () => {
     const {

@@ -81,4 +81,5 @@ export type HistorySnapshot = {
   edges: Edge[];
   constraints: EdgeConstraint[];
   edgeProfile: Record<string, string>;
+  lockedEdgeIds: string[];
 };

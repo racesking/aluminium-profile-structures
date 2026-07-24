@@ -65,6 +65,33 @@ describe('computeJointTreatments', () => {
     expect(rail.clipNormal![1]).toBeCloseTo(-py, 6);
   });
 
+  it('mitre with unequal sections extends both by the larger half-section', () => {
+    const { nodes, edges, sectionOf } = corner(40, 20);
+    const t = computeJointTreatments(nodes, edges, sectionOf, 'mitre');
+    // 90° corner: tan(45°) = 1 → ext = max(40, 20) / 2 for BOTH members, so
+    // the smaller member's cut still spans the larger one's full width.
+    expect(t.get('post')!.from.trim).toBeCloseTo(-20, 6);
+    expect(t.get('rail')!.from.trim).toBeCloseTo(-20, 6);
+  });
+
+  it('mitre at an acute corner extends further than a right angle', () => {
+    const s = Math.sin(Math.PI / 3);
+    const c = Math.cos(Math.PI / 3);
+    const nodes: Node[] = [
+      { id: 'o', position: [0, 0, 0] },
+      { id: 'up', position: [0, 500, 0] },
+      { id: 'diag', position: [500 * s, 500 * c, 0] }, // 60° from the post
+    ];
+    const edges = [
+      { id: 'post', fromId: 'o', toId: 'up' },
+      { id: 'diag', fromId: 'o', toId: 'diag' },
+    ];
+    const t = computeJointTreatments(nodes, edges, () => 40, 'mitre');
+    // ext = (40/2) / tan(30°) ≈ 34.64 — the old fixed 20 left a visible gap.
+    expect(t.get('post')!.from.trim).toBeCloseTo(-34.641, 2);
+    expect(t.get('diag')!.from.trim).toBeCloseTo(-34.641, 2);
+  });
+
   it('mitre with 3+ members falls back to the butt rule', () => {
     const { nodes, edges } = corner(40, 20);
     const nodes3: Node[] = [...nodes, { id: 'left', position: [-400, 0, 0] }];

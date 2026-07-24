@@ -129,7 +129,10 @@ function teeT(s: number): SectionOutline {
 function boschTSlot(s: number): SectionOutline {
   const h = s / 2;
   const a2 = (s * 0.26) / 2; // slot opening half-width at the surface
-  const b2 = (s * 0.55) / 2; // inner cavity half-width
+  // Cavity half-width must stay below h - depth (= 0.22s), otherwise adjacent
+  // faces' cavities cross and the outer contour self-intersects, corrupting
+  // the extruded mesh.
+  const b2 = (s * 0.4) / 2; // inner cavity half-width
   const lip = s * 0.09; // depth of the narrow lip
   const depth = s * 0.28; // total cavity depth
 

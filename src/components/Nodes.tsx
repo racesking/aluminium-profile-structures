@@ -34,6 +34,7 @@ function NodeSphere({
   const workPlane = useStructureStore((s) => s.workPlane);
   const axisLock = useStructureStore((s) => s.axisLock);
   const setSelection = useStructureStore((s) => s.setSelection);
+  const isNodeLocked = useStructureStore((s) => s.isNodeLocked);
   const moveNode = useStructureStore((s) => s.moveNode);
   const finishNodeDrag = useStructureStore((s) => s.finishNodeDrag);
   const pushHistory = useStructureStore((s) => s.pushHistory);
@@ -44,6 +45,9 @@ function NodeSphere({
   const intersect = useRef(new THREE.Vector3());
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    // Only the left button interacts with nodes — the right button belongs to
+    // the marking menu / flick gesture and must not drag or connect.
+    if (e.nativeEvent.button !== 0) return;
     e.stopPropagation();
     if (toolMode === 'connect') {
       if (connectFromId) finishConnect(id);
@@ -52,6 +56,9 @@ function NodeSphere({
     }
     if (toolMode === 'select') {
       setSelection({ type: 'node', id });
+      // A pinned node can be selected but not dragged; starting the drag
+      // would push a no-op history entry and wipe the redo stack.
+      if (isNodeLocked(id)) return;
       pushHistory();
       dragOrigin.current = [...position];
       (e.target as unknown as HTMLElement)?.setPointerCapture?.(e.pointerId);
