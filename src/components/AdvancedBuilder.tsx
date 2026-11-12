@@ -177,9 +177,12 @@ export function AdvancedBuilder() {
   }, []);
 
   const focusTranslate = () => {
-    document
-      .getElementById('translate-panel')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // The offset fields live in a collapsible "Move / duplicate" section.
+    const panel = document.getElementById('translate-panel');
+    const details = panel?.closest('details');
+    if (details) details.open = true;
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    panel?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
   };
 
   return (

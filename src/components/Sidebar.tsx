@@ -1,12 +1,14 @@
+import { useId } from 'react';
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
-import {
-  constraintLabel,
-  constraintLabelPerp,
-} from '../core/constraints';
 import { getConstraintEdgePair } from '../core/selection';
+import { sectionLabel } from '../core/profileShapes';
+import type { ProfileDef } from '../core/profiles';
 import { DuplicatePanel } from './DuplicatePanel';
+import { CommitNumberInput } from './CommitNumberInput';
+import { LockIcon } from './LockIcon';
+import { useCutPlan } from './useCutPlan';
 
 export function Sidebar() {
   const units = useSettingsStore((s) => s.units);
@@ -24,14 +26,9 @@ export function Sidebar() {
   const getEdgeLength = useStructureStore((s) => s.getEdgeLength);
   const setEdgeLengthById = useStructureStore((s) => s.setEdgeLengthById);
   const getNodePairDistance = useStructureStore((s) => s.getNodePairDistance);
-  const canConstrain = useStructureStore((s) => {
-    const pair = getConstraintEdgePair(
-      s.selection,
-      s.selectedEdgeIds,
-      s.secondEdgeId,
-    );
-    return pair !== null;
-  });
+  const canConstrain = useStructureStore(
+    (s) => getConstraintEdgePair(s.selection, s.selectedEdgeIds, s.secondEdgeId) !== null,
+  );
   const applyConstraintParallelToPair = useStructureStore(
     (s) => s.applyConstraintParallelToPair,
   );
@@ -40,133 +37,136 @@ export function Sidebar() {
   );
   const removeConstraint = useStructureStore((s) => s.removeConstraint);
 
+  const plan = useCutPlan();
+  const ids = useId();
+  const labelOf = (edgeId: string) => plan.parts.get(edgeId)?.label ?? '—';
+  const partCount = new Set([...plan.parts.values()].map((p) => p.part)).size;
+
   const selectedEdge =
-    selection?.type === 'edge'
-      ? edges.find((e) => e.id === selection.id)
-      : null;
-  const edgeLen = selectedEdge ? getEdgeLength(selectedEdge.id) : 0;
-  const pairDist = getNodePairDistance();
+    selection?.type === 'edge' ? edges.find((e) => e.id === selection.id) : null;
   const primaryEdgeId = selection?.type === 'edge' ? selection.id : null;
-  const hasSelection =
-    selection?.type === 'edge' || selectedEdgeIds.length > 0;
+  const hasSelection = selection?.type === 'edge' || selectedEdgeIds.length > 0;
+  const pairDist = getNodePairDistance();
+
+  // Members listed by part (A1, A2, B1 …) — the order a cut list is read in.
+  const members = edges
+    .map((e) => ({ edge: e, info: plan.parts.get(e.id) }))
+    .sort((a, b) =>
+      (a.info?.label ?? '').localeCompare(b.info?.label ?? '', 'en', { numeric: true }),
+    );
 
   return (
-    <aside className="panel">
+    <aside className="panel" aria-label="Structure">
       <div className="panel-header">Structure</div>
       <div className="panel-body">
         <div className="stats-row">
-          <div className="stat-card">
-            <strong>Nodes</strong>
-            <span>{nodes.length}</span>
-          </div>
           <div className="stat-card">
             <strong>Members</strong>
             <span>{edges.length}</span>
           </div>
           <div className="stat-card">
-            <strong>Constraints</strong>
-            <span>{constraints.length}</span>
+            <strong>Parts</strong>
+            <span>{partCount}</span>
+          </div>
+          <div className="stat-card">
+            <strong>Total cut</strong>
+            <span>{formatLength(plan.totalCut, units)}</span>
           </div>
         </div>
 
+        {selectedEdge && (
+          <MemberInspector
+            edgeId={selectedEdge.id}
+            label={labelOf(selectedEdge.id)}
+            centreline={getEdgeLength(selectedEdge.id)}
+            cutLength={plan.cutLengths.get(selectedEdge.id)}
+            profile={plan.profileOf(selectedEdge.id)}
+            locked={lockedEdgeIds.includes(selectedEdge.id)}
+            extraSelected={Math.max(0, selectedEdgeIds.length - 1)}
+            onLength={(mm) => setEdgeLengthById(selectedEdge.id, mm)}
+          />
+        )}
+
         {hasSelection && (
-          <div className="section">
+          <details className="section disclosure">
+            <summary className="section-title">Move / duplicate</summary>
             <DuplicatePanel />
-          </div>
+          </details>
         )}
 
-        {selection?.type === 'edge' && selectedEdge && (
-          <div className="section">
-            <p className="section-title">Selected member</p>
-            <div className="field">
-              <label>Length ({units})</label>
-              <input
-                type="number"
-                min={0}
-                step={unitInputStep(units)}
-                value={toDisplay(edgeLen, units)}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) {
-                    setEdgeLengthById(selectedEdge.id, fromDisplay(v, units));
-                  }
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {hasSelection && (
-          <div className="section">
-            <p className="section-title">Constraints</p>
-            <div className="field">
-              <label>Second member</label>
-              <select
-                value={secondEdgeId ?? ''}
-                onChange={(e) => setSecondEdge(e.target.value || null)}
-              >
-                <option value="">
-                  {selectedEdgeIds.length >= 2
-                    ? '2 members selected'
-                    : 'Shift+click another…'}
-                </option>
-                {edges
-                  .filter((e) => e.id !== primaryEdgeId)
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      M{edges.indexOf(e) + 1} — {formatLength(getEdgeLength(e.id), units)}
+        {(hasSelection || constraints.length > 0) && (
+          <details className="section disclosure" open={constraints.length > 0}>
+            <summary className="section-title">
+              Constraints{constraints.length > 0 ? ` (${constraints.length})` : ''}
+            </summary>
+            {hasSelection && (
+              <>
+                <div className="field">
+                  <label htmlFor={`${ids}-second`}>Align against</label>
+                  <select
+                    id={`${ids}-second`}
+                    value={secondEdgeId ?? ''}
+                    onChange={(e) => setSecondEdge(e.target.value || null)}
+                  >
+                    <option value="">
+                      {selectedEdgeIds.length >= 2
+                        ? 'The other selected member'
+                        : 'Shift+click a second member…'}
                     </option>
-                  ))}
-              </select>
-            </div>
-            <div className="constraint-actions">
-              <button
-                type="button"
-                className="primary"
-                disabled={!canConstrain}
-                onClick={applyConstraintParallelToPair}
-              >
-                ∥ Parallel
-              </button>
-              <button
-                type="button"
-                disabled={!canConstrain}
-                onClick={applyConstraintPerpendicularToPair}
-              >
-                ⊥ Perp
-              </button>
-            </div>
-          </div>
-        )}
-
-        {constraints.length > 0 && (
-          <div className="section">
-            <p className="section-title">Active</p>
-            {constraints.map((c) => (
-              <div key={c.id} className="constraint-item">
-                <span>
-                  {c.type === 'parallel'
-                    ? constraintLabel(c, edges)
-                    : constraintLabelPerp(c, edges)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeConstraint(c.id)}
-                  title="Remove"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
+                    {members
+                      .filter(({ edge }) => edge.id !== primaryEdgeId)
+                      .map(({ edge }) => (
+                        <option key={edge.id} value={edge.id}>
+                          {labelOf(edge.id)} — {formatLength(plan.cutLengths.get(edge.id) ?? 0, units)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="constraint-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={!canConstrain}
+                    onClick={applyConstraintParallelToPair}
+                  >
+                    ∥ Parallel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canConstrain}
+                    onClick={applyConstraintPerpendicularToPair}
+                  >
+                    ⊥ Perpendicular
+                  </button>
+                </div>
+              </>
+            )}
+            {constraints.map((c) => {
+              const text = `${labelOf(c.edgeAId)} ${c.type === 'parallel' ? '∥' : '⊥'} ${labelOf(c.edgeBId)}`;
+              return (
+                <div key={c.id} className="constraint-item">
+                  <span>{text}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeConstraint(c.id)}
+                    aria-label={`Remove constraint ${text}`}
+                    title="Remove constraint"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </details>
         )}
 
         {selection?.type === 'node' && (
           <div className="section">
             <p className="section-title">Node</p>
             <div className="field">
-              <label>Compare distance to</label>
+              <label htmlFor={`${ids}-node`}>Measure distance to</label>
               <select
+                id={`${ids}-node`}
                 value={secondNodeId ?? ''}
                 onChange={(e) => setSecondNode(e.target.value || null)}
               >
@@ -190,52 +190,125 @@ export function Sidebar() {
         )}
 
         <div className="section">
-          <p className="section-title">Members</p>
-          <div className="list-scroll">
-            {edges.length === 0 ? (
-              <div className="list-item" style={{ cursor: 'default', opacity: 0.6 }}>
-                No members yet
-              </div>
-            ) : (
-              edges.map((e, i) => (
-                <div
-                  key={e.id}
-                  className={`list-item ${
-                    selectedEdgeIds.includes(e.id) || secondEdgeId === e.id
-                      ? 'selected'
-                      : ''
-                  }`}
-                  onClick={() => setSelection({ type: 'edge', id: e.id })}
-                >
-                  M{i + 1} · {formatLength(getEdgeLength(e.id), units)}
-                  {lockedEdgeIds.includes(e.id) ? ' 🔒' : ''}
-                </div>
-              ))
-            )}
-          </div>
+          <p className="section-title" id={`${ids}-members`}>
+            Members
+          </p>
+          {edges.length === 0 ? (
+            <p className="hint hint-compact" style={{ marginTop: 0 }}>
+              No members yet. Start from a box frame, or place nodes (N) and
+              connect them (C).
+            </p>
+          ) : (
+            <ul className="list-scroll" aria-labelledby={`${ids}-members`}>
+              {members.map(({ edge }) => {
+                const selected =
+                  selectedEdgeIds.includes(edge.id) || secondEdgeId === edge.id;
+                const locked = lockedEdgeIds.includes(edge.id);
+                return (
+                  <li key={edge.id}>
+                    <button
+                      type="button"
+                      className={`list-item ${selected ? 'selected' : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => setSelection({ type: 'edge', id: edge.id })}
+                    >
+                      <span className="list-item-id">{labelOf(edge.id)}</span>
+                      <span>{formatLength(plan.cutLengths.get(edge.id) ?? 0, units)}</span>
+                      {locked && <LockIcon title="Locked" />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         {nodes.length > 0 && (
-          <div className="section">
-            <p className="section-title">Nodes</p>
-            <div className="list-scroll">
-              {nodes.map((n) => (
-                <div
-                  key={n.id}
-                  className={`list-item ${
-                    selection?.type === 'node' && selection.id === n.id
-                      ? 'selected'
-                      : ''
-                  }`}
-                  onClick={() => setSelection({ type: 'node', id: n.id })}
-                >
-                  {n.position.map((v) => toDisplay(v, units)).join(', ')}
-                </div>
-              ))}
-            </div>
-          </div>
+          <details className="section disclosure">
+            <summary className="section-title">Nodes ({nodes.length})</summary>
+            <ul className="list-scroll">
+              {nodes.map((n) => {
+                const selected = selection?.type === 'node' && selection.id === n.id;
+                return (
+                  <li key={n.id}>
+                    <button
+                      type="button"
+                      className={`list-item ${selected ? 'selected' : ''}`}
+                      aria-pressed={selected}
+                      onClick={() => setSelection({ type: 'node', id: n.id })}
+                    >
+                      {n.position.map((v) => toDisplay(v, units)).join(', ')}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
         )}
       </div>
     </aside>
+  );
+}
+
+/** What the user edits most: the selected member's length, part and profile. */
+function MemberInspector({
+  edgeId,
+  label,
+  centreline,
+  cutLength,
+  profile,
+  locked,
+  extraSelected,
+  onLength,
+}: {
+  edgeId: string;
+  label: string;
+  centreline: number;
+  cutLength: number | undefined;
+  profile: ProfileDef;
+  locked: boolean;
+  extraSelected: number;
+  onLength: (mm: number) => void;
+}) {
+  const units = useSettingsStore((s) => s.units);
+  const id = useId();
+  return (
+    <div className="section inspector" key={edgeId}>
+      <p className="section-title">
+        Member {label}
+        {extraSelected > 0 && (
+          <span className="inspector-more"> + {extraSelected} more selected</span>
+        )}
+      </p>
+      <div className="field">
+        <label htmlFor={id}>Centreline length ({units})</label>
+        <CommitNumberInput
+          id={id}
+          min={0}
+          step={unitInputStep(units)}
+          value={toDisplay(centreline, units)}
+          disabled={locked}
+          onCommit={(v) => {
+            if (v > 0) onLength(fromDisplay(v, units));
+          }}
+        />
+      </div>
+      <dl className="inspector-facts">
+        <dt>Cut length</dt>
+        <dd>{cutLength !== undefined ? formatLength(cutLength, units) : '—'}</dd>
+        <dt>Profile</dt>
+        <dd>
+          {profile.name} · {sectionLabel(profile)}
+        </dd>
+        {locked && (
+          <>
+            <dt>Status</dt>
+            <dd>
+              <LockIcon /> Locked
+            </dd>
+          </>
+        )}
+      </dl>
+    </div>
   );
 }

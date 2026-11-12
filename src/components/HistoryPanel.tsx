@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { useStructureStore } from '../store/structureStore';
 import {
   getExpressProjectId,
@@ -14,6 +14,7 @@ import {
   type ProjectMeta,
   type VersionRecord,
 } from '../core/versionStore';
+import { Modal } from './Modal';
 
 type Props = {
   open: boolean;
@@ -25,6 +26,17 @@ type LoadedHistory = {
   meta: ProjectMeta | null;
   rows: { version: VersionRecord; when: string }[];
 };
+
+/** One-line content hint so similar autosaves can be told apart. */
+function versionSummary(version: VersionRecord): string {
+  const p = version.payload as { edges?: unknown[]; templateId?: string } | null;
+  if (p && Array.isArray(p.edges)) {
+    const n = p.edges.length;
+    return `${n} member${n === 1 ? '' : 's'}`;
+  }
+  if (p && typeof p.templateId === 'string') return p.templateId.replace(/-/g, ' ');
+  return '';
+}
 
 /** Pure fetch of a project's history — state updates happen in callbacks. */
 async function loadHistory(projectId: string | null): Promise<LoadedHistory> {
@@ -47,6 +59,8 @@ export function HistoryPanel({ open, onClose, kind }: Props) {
   const [data, setData] = useState<LoadedHistory | null>(null);
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const nameId = useId();
 
   const projectId =
     kind === 'structure' ? structureProjectId : getExpressProjectId();
@@ -92,81 +106,102 @@ export function HistoryPanel({ open, onClose, kind }: Props) {
   const meta = data?.meta ?? null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal history-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Version history</h2>
-
-        {meta && (
-          <div className="field">
-            <label>Project name</label>
-            <input
-              type="text"
-              defaultValue={meta.name}
-              onBlur={(e) => {
-                if (e.target.value.trim() && e.target.value !== meta.name) {
-                  void renameProject(meta, e.target.value).then(reload);
-                }
-              }}
-            />
-          </div>
-        )}
-
-        <div className="history-checkpoint">
+    <Modal title="Version history" onClose={onClose} className="history-modal">
+      {meta && kind === 'express' && (
+        <div className="field">
+          <label htmlFor={nameId}>Project name</label>
           <input
+            id={nameId}
             type="text"
-            placeholder="Checkpoint name (optional)"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            defaultValue={meta.name}
+            onBlur={(e) => {
+              if (e.target.value.trim() && e.target.value !== meta.name) {
+                void renameProject(meta, e.target.value).then(reload);
+              }
+            }}
           />
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => void handleCheckpoint()}
-          >
-            Save version
-          </button>
         </div>
+      )}
 
-        <div className="history-list">
-          {data === null ? (
-            <p className="hint">Loading…</p>
-          ) : data.rows.length === 0 ? (
-            <p className="hint">
-              No versions yet — they appear as you work (autosave) or when you
-              save a version.
-            </p>
-          ) : (
-            data.rows.map(({ version, when }) => (
+      <div className="history-checkpoint">
+        <input
+          type="text"
+          placeholder="Checkpoint name (optional)"
+          aria-label="Checkpoint name"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => void handleCheckpoint()}
+        >
+          Save version
+        </button>
+      </div>
+
+      <div className="history-list">
+        {data === null ? (
+          <p className="hint">Loading…</p>
+        ) : data.rows.length === 0 ? (
+          <p className="hint">
+            No versions yet — they appear as you work (autosave) or when you
+            save a version.
+          </p>
+        ) : (
+          data.rows.map(({ version, when }) => {
+            const confirming = confirmId === version.id;
+            return (
               <div key={version.id} className="history-row">
-                <span
-                  className={`history-badge ${
-                    version.auto && !version.label ? 'auto' : 'manual'
-                  }`}
-                >
-                  {version.label || (version.auto ? 'Autosave' : 'Checkpoint')}
+                <span className="history-text">
+                  <span
+                    className={`history-badge ${
+                      version.auto && !version.label ? 'auto' : 'manual'
+                    }`}
+                  >
+                    {version.label || (version.auto ? 'Autosave' : 'Checkpoint')}
+                  </span>
+                  <span className="history-meta">{versionSummary(version)}</span>
                 </span>
                 <span className="history-time" title={version.savedAt}>
                   {when}
                 </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void handleRestore(version)}
-                >
-                  Restore
-                </button>
+                {confirming ? (
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={busy}
+                    onClick={() => void handleRestore(version)}
+                    onBlur={() => setConfirmId(null)}
+                    autoFocus
+                  >
+                    Confirm restore
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmId(version.id)}
+                  >
+                    Restore
+                  </button>
+                )}
               </div>
-            ))
-          )}
-        </div>
-
-        <div className="modal-actions">
-          <button type="button" onClick={onClose}>
-            Close
-          </button>
-        </div>
+            );
+          })
+        )}
       </div>
-    </div>
+      <p className="hint hint-compact">
+        Restoring keeps what&apos;s on screen now as an autosave, so you can
+        always come back to it.
+      </p>
+
+      <div className="modal-actions">
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
   );
 }

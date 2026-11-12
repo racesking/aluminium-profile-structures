@@ -56,6 +56,8 @@ export function structureDrawingSvg(
   members: CutMember[],
   roleColors: Map<string, string>,
   units: LengthUnit,
+  /** Text inside each balloon; defaults to the running item number. */
+  balloonLabel: (role: string, n: number) => string = (_role, n) => String(n),
 ): { svg: string; items: DrawingItem[] } {
   if (members.length === 0) return { svg: '', items: [] };
 
@@ -169,7 +171,7 @@ export function structureDrawingSvg(
       `<line x1="${bpos.x.toFixed(1)}" y1="${bpos.y.toFixed(1)}" x2="${mid.x.toFixed(1)}" y2="${mid.y.toFixed(1)}" stroke="#111" stroke-width="0.7"/>`,
       `<circle cx="${mid.x.toFixed(1)}" cy="${mid.y.toFixed(1)}" r="2.2" fill="#111"/>`,
       `<circle cx="${bpos.x.toFixed(1)}" cy="${bpos.y.toFixed(1)}" r="11" fill="#fff" stroke="#111" stroke-width="1.2"/>`,
-      `<text x="${bpos.x.toFixed(1)}" y="${(bpos.y + 4).toFixed(1)}" text-anchor="middle" font-family="monospace" font-size="12" font-weight="600" fill="#111">${i + 1}</text>`,
+      `<text x="${bpos.x.toFixed(1)}" y="${(bpos.y + 4).toFixed(1)}" text-anchor="middle" font-family="monospace" font-size="12" font-weight="600" fill="#111">${esc(balloonLabel(role, i + 1))}</text>`,
     );
   });
 

@@ -112,7 +112,7 @@
   top: 18px;
   right: 18px;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -235,7 +235,7 @@
 
 .wizard-recent-title {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -280,7 +280,7 @@
 
 .wizard-recent-kind {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -293,7 +293,7 @@
 
 .wizard-recent-time {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   flex-shrink: 0;
 }

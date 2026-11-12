@@ -1,5 +1,4 @@
 import type { MultiCuttingResult } from './cuttingStock';
-import { solveCuttingStockByProfile } from './cuttingStock';
 import type { CutMember } from './joints';
 import type { ProfileDef } from './profiles';
 import type { LengthUnit } from './units';
@@ -7,7 +6,9 @@ import { toDisplay, formatLength } from './units';
 import { structureDrawingSvg } from './drawing';
 import { assignRoleColors } from './templates';
 import { distance, roundLength } from './geometry';
-import type { CutPiece, Edge, Node, StockBar, Vec3 } from './types';
+import type { Edge, Node, StockBar, Vec3 } from './types';
+import { planStructureCuts } from './structureCuts';
+import { sectionLabel } from './profileShapes';
 
 export type BomExportInput = {
   multi: MultiCuttingResult;
@@ -19,6 +20,11 @@ export type BomExportInput = {
   dateStr: string;
   /** Role → colour map, for the isometric drawing + parts list swatches. */
   roleColors?: Map<string, string>;
+  /**
+   * Roles are lettered parts ("Part A"): balloons and the parts list show the
+   * letter instead of a running item number (Advanced builder).
+   */
+  partLetters?: boolean;
 };
 
 type MemberRow = {
@@ -109,14 +115,24 @@ function escapeHtml(s: string): string {
  * Open in a window → print / Save as PDF.
  */
 export function bomToPrintHtml(input: BomExportInput): string {
-  const { units, multi, cutMembers, profileOf, projectName, dateStr, roleColors } = input;
+  const { units, multi, cutMembers, profileOf, projectName, dateStr, roleColors, partLetters } =
+    input;
 
-  const drawing = structureDrawingSvg(cutMembers, roleColors ?? new Map(), units);
+  // Advanced parts are lettered ("Part A"): the balloon carries the letter so
+  // the drawing, parts list and cut plan use one ID. Express keeps numbers.
+  const balloonText = (role: string, n: number) =>
+    partLetters ? role.replace(/^Part\s+/, '') : String(n);
+  const drawing = structureDrawingSvg(cutMembers, roleColors ?? new Map(), units, balloonText);
+  // Shape-aware section label (⌀40, L30×30 …) for a cut-plan group.
+  const sectionLabelOf = (g: { profileId: string; sectionMm: number }) => {
+    const m = cutMembers.find((cm) => profileOf(cm.role).id === g.profileId);
+    return m ? sectionLabel(profileOf(m.role)) : `${g.sectionMm} mm`;
+  };
 
-  const partsList = `<table><thead><tr><th class="num">Item</th><th></th><th>Profile</th><th class="num">Section</th><th>Member</th><th class="num">Length</th><th class="num">Qty</th></tr></thead><tbody>${drawing.items
+  const partsList = `<table><thead><tr><th class="num">${partLetters ? 'Part' : 'Item'}</th><th></th><th>Profile</th><th>Section</th><th>Member</th><th class="num">Cut length</th><th class="num">Qty</th></tr></thead><tbody>${drawing.items
     .map((it) => {
       const p = profileOf(it.role);
-      return `<tr><td class="num"><span class="balloon">${it.n}</span></td><td><span class="swatch" style="background:${it.color}"></span></td><td>${escapeHtml(p.name)}</td><td class="num">${p.sectionMm} mm</td><td>${escapeHtml(it.role)}</td><td class="num">${formatLength(it.lengthMm, units)}</td><td class="num">${it.qty}</td></tr>`;
+      return `<tr><td class="num"><span class="balloon">${escapeHtml(balloonText(it.role, it.n))}</span></td><td><span class="swatch" style="background:${it.color}"></span></td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(sectionLabel(p))}</td><td>${escapeHtml(it.role)}</td><td class="num">${formatLength(it.lengthMm, units)}</td><td class="num">${it.qty}</td></tr>`;
     })
     .join('')}</tbody></table>`;
 
@@ -143,7 +159,7 @@ export function bomToPrintHtml(input: BomExportInput): string {
     .map(
       (g) => `
       <section>
-        <h3>${escapeHtml(g.profileName)} · ${g.sectionMm} mm — ${g.result.bars.length} bar(s), waste ${formatLength(g.result.totalWaste, units)}</h3>
+        <h3>${escapeHtml(g.profileName)} · ${escapeHtml(sectionLabelOf(g))} — ${g.result.bars.length} ${g.result.bars.length === 1 ? 'bar' : 'bars'}, waste ${formatLength(g.result.totalWaste, units)}</h3>
         ${cutPlan(g.result.bars)}
       </section>`,
     )
@@ -189,121 +205,72 @@ export function bomToPrintHtml(input: BomExportInput): string {
   </body></html>`;
 }
 
-/** A, B, … Z, AA, AB … part labels by index. */
-function partLabel(i: number): string {
-  let n = i + 1;
-  let s = '';
-  while (n > 0) {
-    s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return `Part ${s}`;
-}
-
 /**
  * Build export input from the Advanced builder's raw nodes/edges (multi
- * profile). Members are grouped by (profile, length) into lettered parts so the
- * drawing gets one balloon/colour per distinct part, and each profile is cut
- * from its own stock.
+ * profile). Uses the same joint-compensated cut lengths and part letters as
+ * the 3D view and the cut-plan panel (core/structureCuts): one lettered part
+ * per distinct (profile, cut length), so the drawing balloons, parts list and
+ * cut plan speak the same language as the editor.
  */
 export function structureToExportInput(args: {
   nodes: Node[];
   edges: Edge[];
   profiles: ProfileDef[];
-  edgeProfileId: (edgeId: string) => string;
+  edgeProfile: Record<string, string>;
   stockByProfile: Record<string, StockBar[]>;
   kerf: number;
+  /** Joint type; defaults to square butt when omitted. */
+  jointId?: string;
   units: LengthUnit;
   projectName: string;
   dateStr: string;
 }): BomExportInput {
-  const {
+  const { nodes, edges, profiles, units, projectName, dateStr } = args;
+  const plan = planStructureCuts({
     nodes,
     edges,
     profiles,
-    edgeProfileId,
-    stockByProfile,
-    kerf,
-    units,
-    projectName,
-    dateStr,
-  } = args;
+    edgeProfile: args.edgeProfile,
+    stockByProfile: args.stockByProfile,
+    kerf: args.kerf,
+    jointId: args.jointId ?? 'butt',
+  });
   const posOf = (id: string) => nodes.find((n) => n.id === id)?.position;
-  const fallback = profiles[0];
-  const profileById = (id: string) => profiles.find((p) => p.id === id) ?? fallback;
 
-  const raw = edges
-    .map((e) => {
-      const from = posOf(e.fromId);
-      const to = posOf(e.toId);
-      if (!from || !to) return null;
-      const length = roundLength(distance(from, to));
-      const profile = profileById(edgeProfileId(e.id));
-      return length > 0 ? { id: e.id, from, to, length, profile } : null;
-    })
-    .filter(
-      (x): x is { id: string; from: Vec3; to: Vec3; length: number; profile: ProfileDef } =>
-        x !== null,
-    );
-
-  // One lettered part per distinct (profile, length), labels assigned by
-  // descending length within ascending profile order so the longest member of
-  // the first profile is Part A.
-  const partKeys = [
-    ...new Set(raw.map((m) => `${m.profile.id}|${m.length}`)),
-  ].sort((a, b) => {
-    const [pa, la] = a.split('|');
-    const [pb, lb] = b.split('|');
-    const ia = profiles.findIndex((p) => p.id === pa);
-    const ib = profiles.findIndex((p) => p.id === pb);
-    return ia - ib || Number(lb) - Number(la);
-  });
-  const labelOf = new Map(partKeys.map((key, i) => [key, partLabel(i)]));
   const partProfile = new Map<string, ProfileDef>();
-
-  const cutMembers: CutMember[] = raw.map((m) => {
-    const role = labelOf.get(`${m.profile.id}|${m.length}`)!;
-    partProfile.set(role, m.profile);
-    return {
-      id: m.id,
+  const cutMembers: CutMember[] = [];
+  for (const e of edges) {
+    const length = plan.cutLengths.get(e.id);
+    const info = plan.parts.get(e.id);
+    const from = posOf(e.fromId);
+    const to = posOf(e.toId);
+    if (length === undefined || !info || !from || !to) continue;
+    const role = `Part ${info.part}`;
+    partProfile.set(role, plan.profileOf(e.id));
+    cutMembers.push({
+      id: e.id,
       role,
-      from: m.from,
-      to: m.to,
-      length: m.length,
-      nominal: m.length,
-    };
-  });
+      from: from as Vec3,
+      to: to as Vec3,
+      length,
+      nominal: roundLength(distance(from, to)),
+    });
+  }
+  // Keep the drawing's part order alphabetical (A first) for balloon reading.
+  cutMembers.sort((a, b) => a.role.localeCompare(b.role, 'en', { numeric: true }));
 
   const roleColors = assignRoleColors(cutMembers);
+  const fallback = profiles[0];
   const profileOf = (role: string): ProfileDef => partProfile.get(role) ?? fallback;
 
-  // Cut each profile from its own stock.
-  const piecesByProfile = new Map<string, CutPiece[]>();
-  for (const m of cutMembers) {
-    const id = profileOf(m.role).id;
-    const list = piecesByProfile.get(id) ?? [];
-    list.push({ edgeId: m.id, length: m.length, label: m.role });
-    piecesByProfile.set(id, list);
-  }
-  const groups = [...piecesByProfile.entries()].map(([profileId, pieces]) => {
-    const p = profileById(profileId);
-    return {
-      profileId,
-      profileName: p.name,
-      sectionMm: p.sectionMm,
-      pieces,
-      stock: stockByProfile[profileId] ?? [],
-    };
-  });
-  const multi = solveCuttingStockByProfile(groups, kerf);
-
   return {
-    multi,
+    multi: plan.multi,
     cutMembers,
     profileOf,
     units,
     projectName,
     dateStr,
     roleColors,
+    partLetters: true,
   };
 }

@@ -2,7 +2,11 @@ import { v4 as uuid } from 'uuid';
 import type { Edge, Node } from './types';
 import { vec3 } from './geometry';
 
-/** Rectangular tube frame: width (X), depth (Y), height (Z). Origin at bottom-front-left. */
+/**
+ * Rectangular tube frame in the viewport's convention: width on X, height on
+ * Y (up), depth on Z — the same axes as the Express templates. Origin at
+ * bottom-front-left.
+ */
 export function createBoxFrame(
   width: number,
   depth: number,
@@ -14,12 +18,12 @@ export function createBoxFrame(
   const nodes: Node[] = [
     { id: ids[0], position: vec3(0, 0, 0) },
     { id: ids[1], position: vec3(width, 0, 0) },
-    { id: ids[2], position: vec3(width, depth, 0) },
-    { id: ids[3], position: vec3(0, depth, 0) },
-    { id: ids[4], position: vec3(0, 0, height) },
-    { id: ids[5], position: vec3(width, 0, height) },
-    { id: ids[6], position: vec3(width, depth, height) },
-    { id: ids[7], position: vec3(0, depth, height) },
+    { id: ids[2], position: vec3(width, 0, depth) },
+    { id: ids[3], position: vec3(0, 0, depth) },
+    { id: ids[4], position: vec3(0, height, 0) },
+    { id: ids[5], position: vec3(width, height, 0) },
+    { id: ids[6], position: vec3(width, height, depth) },
+    { id: ids[7], position: vec3(0, height, depth) },
   ];
 
   const pairs: [number, number][] = [

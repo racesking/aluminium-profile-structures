@@ -17,7 +17,7 @@
 
 .tpl-category-label {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -97,7 +97,7 @@
 
 .profile-row-unit {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -144,7 +144,7 @@
 
 .profile-stock-head {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text);
@@ -161,7 +161,7 @@
 
 .profile-bom-head {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text);
@@ -211,7 +211,7 @@
 .more-count {
   flex-shrink: 0;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   background: var(--surface-elevated);
@@ -261,7 +261,7 @@
 }
 
 .more-popover .tpl-option span {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.3;
 }
 
@@ -303,7 +303,7 @@
 
 .param-value .unit {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -455,66 +455,6 @@
 
 .buy-line strong {
   font-size: 15px;
-}
-
-/* Cut diagrams */
-
-.cut-group {
-  margin-bottom: 12px;
-}
-
-.cut-group-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-
-.cut-group-head strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.cut-strip {
-  display: flex;
-  height: 26px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--surface-elevated);
-}
-
-.cut-seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2px;
-  color: #fff;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  overflow: hidden;
-  white-space: nowrap;
-  border-right: 1px solid rgba(255, 255, 255, 0.65);
-}
-
-.cut-seg:last-child {
-  border-right: none;
-}
-
-.cut-seg.waste {
-  color: var(--text-muted);
-  background: repeating-linear-gradient(
-    -45deg,
-    #e8e8e8 0,
-    #e8e8e8 4px,
-    #f6f6f6 4px,
-    #f6f6f6 8px
-  );
-  border-right: none;
 }
 
 .express-badge-dims {

@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { toDisplay, fromDisplay, formatLength, unitInputStep } from '../core/units';
@@ -7,9 +8,13 @@ import {
   PROFILE_SHAPES,
   isProfileShape,
   profileShapeOf,
+  sectionLabel,
 } from '../core/profileShapes';
 import { JOINTS, getJoint } from '../core/joints';
 import type { StockBar } from '../core/types';
+import { CutStrip } from './CutStrip';
+import { useCutPlan } from './useCutPlan';
+import { CUT_PLAN_ID, scrollToCutPlan } from './cutPlanNav';
 
 function ProfileStockBlock({
   profile,
@@ -32,9 +37,15 @@ function ProfileStockBlock({
       {showHeader && (
         <p className="profile-stock-head">
           <span className="profile-swatch" style={{ background: color }} />
-          {profile.name} · {profile.sectionMm} mm
+          {profile.name} · {sectionLabel(profile)}
         </p>
       )}
+      <div className="stock-row stock-row-head" aria-hidden>
+        <span>Length ({units})</span>
+        <span />
+        <span>Qty</span>
+        <span />
+      </div>
       {stock.map((bar) => (
         <div key={bar.id} className="stock-row">
           <input
@@ -50,9 +61,11 @@ function ProfileStockBlock({
                 bar.quantity,
               )
             }
-            title={`Length (${units})`}
+            aria-label={`${profile.name} bar length (${units})`}
           />
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>×</span>
+          <span className="stock-times" aria-hidden>
+            ×
+          </span>
           <input
             className="qty"
             type="number"
@@ -66,12 +79,14 @@ function ProfileStockBlock({
                 parseInt(e.target.value, 10) || 0,
               )
             }
+            aria-label={`${profile.name} bars in stock`}
           />
           <button
             type="button"
             onClick={() => removeStock(profile.id, bar.id)}
             disabled={stock.length <= 1}
-            title="Remove"
+            aria-label="Remove this stock row"
+            title="Remove this stock row"
           >
             ×
           </button>
@@ -82,7 +97,7 @@ function ProfileStockBlock({
         onClick={() => addStockRow(profile.id)}
         style={{ marginTop: 6 }}
       >
-        + Row
+        + Add bar length
       </button>
     </div>
   );
@@ -92,11 +107,9 @@ export function StockPanel() {
   const units = useSettingsStore((s) => s.units);
   const profiles = useStructureStore((s) => s.profiles);
   const edges = useStructureStore((s) => s.edges);
-  const edgeProfile = useStructureStore((s) => s.edgeProfile);
   const stockByProfile = useStructureStore((s) => s.stockByProfile);
   const kerf = useStructureStore((s) => s.kerf);
   const jointId = useStructureStore((s) => s.jointId);
-  const cuttingResult = useStructureStore((s) => s.cuttingResult);
 
   const setKerf = useStructureStore((s) => s.setKerf);
   const setJoint = useStructureStore((s) => s.setJoint);
@@ -106,95 +119,121 @@ export function StockPanel() {
   const assignSelectedToProfile = useStructureStore(
     (s) => s.assignSelectedToProfile,
   );
-  const optimize = useStructureStore((s) => s.optimize);
-
   const selectedCount = useStructureStore((s) => s.getActiveEdgeIds().length);
-  const totalCuts = useStructureStore((s) =>
-    s.edges.reduce((sum, e) => sum + s.getEdgeLength(e.id), 0),
-  );
 
-  const fallbackId = profiles[0]?.id;
+  const plan = useCutPlan();
+  const result = plan.multi;
+  const ids = useId();
+
   const memberCount = (profileId: string) =>
-    edges.reduce(
-      (n, e) => n + ((edgeProfile[e.id] ?? fallbackId) === profileId ? 1 : 0),
-      0,
-    );
+    edges.reduce((n, e) => n + (plan.profileOf(e.id).id === profileId ? 1 : 0), 0);
 
   const multi = profiles.length > 1;
   const colorById = new Map(
     profiles.map((p, i) => [p.id, resolveProfileColor(p, i)]),
   );
-
-  const noStock = profiles.every((p) =>
-    (stockByProfile[p.id] ?? []).every((b) => b.quantity === 0),
-  );
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+  const hasPlan = edges.length > 0 && result.byProfile.length > 0;
+  const shortage = result.byProfile.reduce((n, g) => n + g.result.shortageMm, 0);
 
   return (
-    <aside className="panel right">
+    <aside className="panel right" aria-label="Profiles, stock and cut plan">
       <div className="panel-header">Profiles &amp; Stock</div>
       <div className="panel-body">
+        {hasPlan && (
+          <button
+            type="button"
+            className={`cut-summary ${result.anyUnplaced ? 'short' : ''}`}
+            onClick={scrollToCutPlan}
+          >
+            <span>
+              <strong>
+                {result.totalBars} {result.totalBars === 1 ? 'bar' : 'bars'}
+              </strong>{' '}
+              · {result.wastePercent}% waste
+            </span>
+            <span>
+              {result.anyUnplaced
+                ? `Short ${formatLength(shortage, units)}`
+                : 'All cuts fit'}{' '}
+              ↓
+            </span>
+          </button>
+        )}
+
         <div className="section">
           <p className="section-title">Profiles</p>
-          {profiles.map((p, i) => (
-            <div key={p.id} className="profile-row">
-              <input
-                type="color"
-                className="profile-color-input"
-                value={resolveProfileColor(p, i)}
-                onChange={(e) => updateProfile(p.id, { color: e.target.value })}
-                title="Profile color — used in the 3D view and cut plan"
-              />
-              <input
-                type="text"
-                value={p.name}
-                onChange={(e) => updateProfile(p.id, { name: e.target.value })}
-                title="Profile name"
-              />
-              <input
-                type="number"
-                min={1}
-                max={500}
-                value={p.sectionMm}
-                onChange={(e) =>
-                  updateProfile(p.id, {
-                    sectionMm: parseFloat(e.target.value) || 20,
-                  })
-                }
-                title="Section size (mm)"
-              />
-              <span className="profile-row-unit">mm</span>
-              <span
-                className="profile-row-count"
-                title="Members assigned to this profile"
-              >
-                {memberCount(p.id)}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeProfile(p.id)}
-                disabled={profiles.length <= 1}
-                title="Remove profile"
-              >
-                ×
-              </button>
-              <select
-                className="profile-shape-select"
-                value={profileShapeOf(p)}
-                onChange={(e) => {
-                  if (isProfileShape(e.target.value)) {
-                    updateProfile(p.id, { shape: e.target.value });
+          {profiles.map((p, i) => {
+            const count = memberCount(p.id);
+            return (
+              <div key={p.id} className="profile-row">
+                <input
+                  type="color"
+                  className="profile-color-input"
+                  value={resolveProfileColor(p, i)}
+                  onChange={(e) => updateProfile(p.id, { color: e.target.value })}
+                  aria-label={`${p.name} colour`}
+                  title="Profile colour — used in the 3D view and cut plan"
+                />
+                <input
+                  type="text"
+                  value={p.name}
+                  onChange={(e) => updateProfile(p.id, { name: e.target.value })}
+                  aria-label="Profile name"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={p.sectionMm}
+                  onChange={(e) =>
+                    updateProfile(p.id, {
+                      sectionMm: parseFloat(e.target.value) || 20,
+                    })
                   }
-                }}
-                title="Cross-section shape"
-              >
-                {PROFILE_SHAPES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
+                  aria-label={`${p.name} section size (mm)`}
+                />
+                <span className="profile-row-unit" aria-hidden>
+                  mm
+                </span>
+                <span
+                  className="profile-row-count"
+                  title={`${count} member${count === 1 ? '' : 's'} use this profile`}
+                >
+                  {count}
+                  <span className="visually-hidden">
+                    {' '}
+                    member{count === 1 ? '' : 's'}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeProfile(p.id)}
+                  disabled={profiles.length <= 1}
+                  aria-label={`Remove profile ${p.name}`}
+                  title="Remove profile"
+                >
+                  ×
+                </button>
+                <select
+                  className="profile-shape-select"
+                  value={profileShapeOf(p)}
+                  onChange={(e) => {
+                    if (isProfileShape(e.target.value)) {
+                      updateProfile(p.id, { shape: e.target.value });
+                    }
+                  }}
+                  aria-label={`${p.name} cross-section shape`}
+                >
+                  {PROFILE_SHAPES.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
           <button type="button" onClick={addProfile} style={{ marginTop: 6 }}>
             + Add profile
           </button>
@@ -229,11 +268,11 @@ export function StockPanel() {
         <div className="section">
           <p className="section-title">Cut settings</p>
           <div className="field">
-            <label>Joint type</label>
+            <label htmlFor={`${ids}-joint`}>Joint type</label>
             <select
+              id={`${ids}-joint`}
               value={jointId}
               onChange={(e) => setJoint(e.target.value)}
-              title="How members meet at shared nodes"
             >
               {JOINTS.map((j) => (
                 <option key={j.id} value={j.id}>
@@ -243,11 +282,12 @@ export function StockPanel() {
             </select>
           </div>
           <p className="hint hint-compact" style={{ marginTop: 0 }}>
-            {getJoint(jointId).short}
+            {getJoint(jointId).short} Cut lengths below include it.
           </p>
           <div className="field">
-            <label>Kerf / blade (mm)</label>
+            <label htmlFor={`${ids}-kerf`}>Kerf / blade (mm)</label>
             <input
+              id={`${ids}-kerf`}
               type="number"
               min={0}
               step={0.5}
@@ -256,8 +296,8 @@ export function StockPanel() {
             />
           </div>
           <div className="stat-card">
-            <strong>Total length</strong>
-            <span>{formatLength(totalCuts, units)}</span>
+            <strong>Total cut length</strong>
+            <span>{formatLength(plan.totalCut, units)}</span>
           </div>
         </div>
 
@@ -272,88 +312,86 @@ export function StockPanel() {
               color={resolveProfileColor(p, i)}
             />
           ))}
-          <button
-            type="button"
-            className="primary"
-            style={{ width: '100%', marginTop: 12 }}
-            onClick={optimize}
-            disabled={edges.length === 0 || noStock}
-          >
-            Optimize cuts
-          </button>
         </div>
 
-        {cuttingResult && cuttingResult.byProfile.length > 0 && (
-          <div className="section">
-            <p className="section-title">Cut plan</p>
-            {cuttingResult.byProfile.map((pr) => {
-              const r = pr.result;
-              return (
-                <div key={pr.profileId}>
-                  {multi && (
-                    <p className="cut-profile-head">
-                      <span
-                        className="profile-swatch"
-                        style={{
-                          background: colorById.get(pr.profileId) ?? '#888888',
-                        }}
-                      />
-                      {pr.profileName} · {pr.sectionMm}×{pr.sectionMm} mm
-                    </p>
-                  )}
-                  {r.bars.map((bar) => (
-                    <div key={bar.barIndex} className="cut-bar">
-                      <div>
-                        <strong>Bar {bar.barIndex}</strong> ·{' '}
-                        {formatLength(bar.stockLength, units)}
-                      </div>
-                      {bar.cuts.map((c, i) => (
-                        <span key={i}>
-                          {i > 0 ? ' + ' : ''}
-                          {formatLength(c.length, units)}
-                          {c.label ? ` (${c.label})` : ''}
-                        </span>
-                      ))}
-                      <div className="waste">
-                        Waste {formatLength(bar.waste, units)}
-                      </div>
-                    </div>
-                  ))}
-                  {r.unplaced.length > 0 ? (
-                    <div className="shortage">
-                      Need {formatLength(r.shortageMm, units)} more.
-                      {r.suggestedBars && (
-                        <>
-                          <br />
-                          Buy {r.suggestedBars.quantity}×{' '}
-                          {formatLength(r.suggestedBars.length, units)}
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="ok">All cuts fit stock.</div>
-                  )}
-                </div>
-              );
-            })}
-            <div className="stat-card" style={{ marginTop: 8 }}>
-              <strong>Waste total</strong>
-              <span>
-                {formatLength(cuttingResult.totalWaste, units)} (
-                {cuttingResult.wastePercent}%)
-              </span>
-            </div>
-            <p className="hint hint-compact">
-              {cuttingResult.byProfile.reduce(
-                (n, p) => n + p.result.bars.reduce((m, b) => m + b.cuts.length, 0),
-                0,
-              )}{' '}
-              members · {cuttingResult.totalBars} bar
-              {cuttingResult.totalBars === 1 ? '' : 's'} ·{' '}
-              {formatLength(cuttingResult.totalCutLength, units)} cut
+        <section
+          className="section cut-plan"
+          id={CUT_PLAN_ID}
+          tabIndex={-1}
+          aria-labelledby={`${ids}-plan`}
+        >
+          <h2 className="section-title" id={`${ids}-plan`}>
+            Cut plan
+          </h2>
+          {!hasPlan ? (
+            <p className="hint hint-compact" style={{ marginTop: 0 }}>
+              Draw members and the cut plan builds itself here: which bars to
+              cut, in which order, and what is left over.
             </p>
-          </div>
-        )}
+          ) : (
+            <>
+              {result.byProfile.map((pr) => {
+                const r = pr.result;
+                const color = colorById.get(pr.profileId) ?? '#888888';
+                const profile = profileById.get(pr.profileId);
+                return (
+                  <div key={pr.profileId} className="cut-plan-profile">
+                    {multi && (
+                      <p className="cut-profile-head">
+                        <span className="profile-swatch" style={{ background: color }} />
+                        {pr.profileName} ·{' '}
+                        {profile ? sectionLabel(profile) : `${pr.sectionMm} mm`}
+                      </p>
+                    )}
+                    {r.bars.map((bar) => (
+                      <div key={bar.barIndex} className="cut-group">
+                        <div className="cut-group-head">
+                          <strong>
+                            Bar {bar.barIndex} · {formatLength(bar.stockLength, units)}
+                          </strong>
+                          <span>waste {formatLength(bar.waste, units)}</span>
+                        </div>
+                        <CutStrip bar={bar} colorOf={() => color} units={units} showLabels />
+                        <p className="cut-legend">
+                          {bar.cuts
+                            .map((c) => `${c.label ?? '—'} ${formatLength(c.length, units)}`)
+                            .join(' · ')}
+                        </p>
+                      </div>
+                    ))}
+                    {r.unplaced.length > 0 ? (
+                      <div className="shortage" role="status">
+                        {r.unplaced.length} piece{r.unplaced.length === 1 ? '' : 's'}{' '}
+                        won&apos;t fit ({formatLength(r.shortageMm, units)} short).
+                        {r.suggestedBars && (
+                          <>
+                            <br />
+                            Add {r.suggestedBars.quantity} ×{' '}
+                            {formatLength(r.suggestedBars.length, units)} to this
+                            profile&apos;s stock.
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="ok">All cuts fit. Kerf included between cuts.</div>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="stat-card" style={{ marginTop: 8 }}>
+                <strong>Waste</strong>
+                <span>
+                  {formatLength(result.totalWaste, units)} ({result.wastePercent}%)
+                </span>
+              </div>
+              <p className="hint hint-compact">
+                {plan.cutLengths.size} member{plan.cutLengths.size === 1 ? '' : 's'} ·{' '}
+                {result.totalBars} {result.totalBars === 1 ? 'bar' : 'bars'} ·{' '}
+                {formatLength(result.totalCutLength, units)} cut
+              </p>
+            </>
+          )}
+        </section>
       </div>
     </aside>
   );

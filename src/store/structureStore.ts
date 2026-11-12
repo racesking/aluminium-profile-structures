@@ -26,24 +26,23 @@ import {
 import { parseSectionSizeMm } from '../core/visualScale';
 import type { ClipboardPayload } from '../core/types';
 import type { StructurePayload } from '../core/projectFile';
-import {
-  formatCutList,
-  solveCuttingStockByProfile,
-} from '../core/cuttingStock';
-import type {
-  MultiCuttingResult,
-  ProfileCutGroup,
-} from '../core/cuttingStock';
+import { formatCutList } from '../core/cuttingStock';
+import type { MultiCuttingResult } from '../core/cuttingStock';
+import { planStructureCuts } from '../core/structureCuts';
+import { useSettingsStore } from './settingsStore';
 import {
   clampSection,
   isProfileHexColor,
   makeProfile,
   type ProfileDef,
 } from '../core/profiles';
-import { isProfileShape, type ProfileShape } from '../core/profileShapes';
+import {
+  isProfileShape,
+  sectionLabel,
+  type ProfileShape,
+} from '../core/profileShapes';
 import type {
   AxisLock,
-  CutPiece,
   EdgeConstraint,
   HistorySnapshot,
   Node,
@@ -202,8 +201,13 @@ type StructureState = {
   exportCutList: () => string;
 };
 
+/** Bar length from Settings (default 6000 mm) — the same default Express uses. */
+function settingsBarLength(): number {
+  return useSettingsStore.getState().defaultBarLength;
+}
+
 function defaultStockBars(): StockBar[] {
-  return [{ id: uuid(), length: 1000, quantity: 6 }];
+  return [{ id: uuid(), length: settingsBarLength(), quantity: 4 }];
 }
 
 type MultiProfileSlice = {
@@ -316,7 +320,8 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   edges: [],
   constraints: [],
   ...defaultProfileSlice(),
-  kerf: 0,
+  // Saw kerf from Settings (default 3 mm): a 0 mm kerf is never a real saw.
+  kerf: useSettingsStore.getState().defaultKerf,
   jointId: DEFAULT_JOINT_ID,
   lockedEdgeIds: [],
   snap: 5,
@@ -499,8 +504,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   setGridCellSize: (size) =>
     set({ gridCellSize: Math.max(0.1, Math.min(10000, size)) }),
   setSnapToGrid: (on) => set({ snapToGrid: on }),
-  setKerf: (kerf) => set({ kerf: Math.max(0, kerf) }),
-  setJoint: (id) => set({ jointId: getJoint(id).id }),
+  // Both change cut lengths/fit, so any computed plan is now out of date.
+  setKerf: (kerf) => set({ kerf: Math.max(0, kerf), cuttingResult: null }),
+  setJoint: (id) => set({ jointId: getJoint(id).id, cuttingResult: null }),
   setWorkPlane: (plane) => set({ workPlane: plane }),
   setAxisLock: (axis) => set({ axisLock: axis }),
   setToolMode: (mode) =>
@@ -1027,9 +1033,10 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         ...s.stockByProfile,
         [profileId]: [
           ...(s.stockByProfile[profileId] ?? []),
-          { id: uuid(), length: 1000, quantity: 1 },
+          { id: uuid(), length: settingsBarLength(), quantity: 1 },
         ],
       },
+      cuttingResult: null,
     })),
 
   updateStock: (profileId, rowId, length, quantity) =>
@@ -1115,37 +1122,19 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   optimize: () => {
-    const { nodes, edges, profiles, edgeProfile, stockByProfile, kerf } = get();
-    const fallbackId = profiles[0].id;
-    const validIds = new Set(profiles.map((p) => p.id));
-    // Group edges by their assigned profile, preserving member numbering (M<i>)
-    // across the whole structure so labels stay stable. Dangling profile ids
-    // fall back to the first profile — a member must never silently vanish
-    // from the cut plan.
-    const piecesByProfile = new Map<string, CutPiece[]>();
-    edges.forEach((e, i) => {
-      const raw = edgeProfile[e.id];
-      const pid = raw && validIds.has(raw) ? raw : fallbackId;
-      const list = piecesByProfile.get(pid) ?? [];
-      list.push({
-        edgeId: e.id,
-        length: roundLength(edgeLength(nodes, e.fromId, e.toId)),
-        label: `M${i + 1}`,
-      });
-      piecesByProfile.set(pid, list);
+    const { nodes, edges, profiles, edgeProfile, stockByProfile, kerf, jointId } = get();
+    // Joint-compensated cut lengths + part labels — the same numbers the 3D
+    // view, the panel and the drawing show (core/structureCuts).
+    const plan = planStructureCuts({
+      nodes,
+      edges,
+      profiles,
+      edgeProfile,
+      stockByProfile,
+      kerf,
+      jointId,
     });
-
-    const groups: ProfileCutGroup[] = profiles
-      .filter((p) => (piecesByProfile.get(p.id)?.length ?? 0) > 0)
-      .map((p) => ({
-        profileId: p.id,
-        profileName: p.name,
-        sectionMm: p.sectionMm,
-        pieces: piecesByProfile.get(p.id) ?? [],
-        stock: stockByProfile[p.id] ?? [],
-      }));
-
-    set({ cuttingResult: solveCuttingStockByProfile(groups, kerf) });
+    set({ cuttingResult: plan.multi });
   },
 
   clearCuttingResult: () => set({ cuttingResult: null }),
@@ -1219,7 +1208,9 @@ export const useStructureStore = create<StructureState>((set, get) => ({
   },
 
   exportCutList: () => {
-    const { cuttingResult } = get();
+    const { cuttingResult, profiles } = get();
+    const sectionLabelFor = (id: string, sectionMm: number) =>
+      sectionLabel(profiles.find((p) => p.id === id) ?? { sectionMm });
     const result = cuttingResult ?? (get().optimize(), get().cuttingResult);
     if (!result || result.byProfile.length === 0) {
       return 'CUT LIST — Aluminium Profile Builder\n\n(no members to cut)';
@@ -1228,7 +1219,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     const multi = result.byProfile.length > 1;
     const blocks = result.byProfile.map((p) => {
       const heading = multi
-        ? `=== ${p.profileName} (${p.sectionMm}×${p.sectionMm} mm) ===\n`
+        ? `=== ${p.profileName} (${sectionLabelFor(p.profileId, p.sectionMm)}) ===\n`
         : '';
       return heading + formatCutList(p.result);
     });

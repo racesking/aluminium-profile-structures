@@ -2,13 +2,15 @@ import { Html } from '@react-three/drei';
 import { useStructureStore } from '../store/structureStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { formatLength } from '../core/units';
-import { edgeLength, midpoint, roundLength } from '../core/geometry';
+import { midpoint } from '../core/geometry';
+import { useCutPlan } from './useCutPlan';
 
 export function DimensionLabels() {
   const units = useSettingsStore((s) => s.units);
   const nodes = useStructureStore((s) => s.nodes);
   const edges = useStructureStore((s) => s.edges);
   const selection = useStructureStore((s) => s.selection);
+  const plan = useCutPlan();
 
   return (
     <group>
@@ -16,7 +18,10 @@ export function DimensionLabels() {
         const from = nodes.find((n) => n.id === edge.fromId);
         const to = nodes.find((n) => n.id === edge.toId);
         if (!from || !to) return null;
-        const len = roundLength(edgeLength(nodes, edge.fromId, edge.toId));
+        // Part ID + cut length: the same "A1 · 380 mm" the panels and the
+        // drawing use, and the length the rendered (joint-trimmed) member has.
+        const len = plan.cutLengths.get(edge.id) ?? 0;
+        const label = plan.parts.get(edge.id)?.label;
         const mid = midpoint(from.position, to.position);
         const isSelected =
           selection?.type === 'edge' && selection.id === edge.id;
@@ -30,6 +35,7 @@ export function DimensionLabels() {
                 fontWeight: isSelected ? 600 : 400,
               }}
             >
+              {label ? `${label} · ` : ''}
               {formatLength(len, units)}
             </div>
           </Html>

@@ -10,6 +10,7 @@ import type { ToolMode, ViewPreset, WorkPlane } from '../core/types';
 import { BoxFrameDialog } from './BoxFrameDialog';
 import { HistoryPanel } from './HistoryPanel';
 import { DrawingModal } from './DrawingModal';
+import { HelpModal } from './HelpModal';
 
 const PLANES: WorkPlane[] = ['xz', 'xy', 'yz', 'free'];
 const PLANE_SHORT: Record<WorkPlane, string> = {
@@ -29,7 +30,7 @@ const VIEW_SHORT: Record<ViewPreset, string> = {
 
 const TOOLS: { mode: ToolMode; label: string; title: string }[] = [
   { mode: 'select', label: 'Select', title: 'Select (V)' },
-  { mode: 'box', label: 'Box', title: 'Box select — drag a rectangle (B)' },
+  { mode: 'box', label: 'Window', title: 'Window select — drag a rectangle (B)' },
   { mode: 'placeNode', label: 'Node', title: 'Place node (N)' },
   { mode: 'connect', label: 'Connect', title: 'Connect (C)' },
 ];
@@ -130,6 +131,7 @@ export function Toolbar() {
 
   const [boxOpen, setBoxOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [drawingHtml, setDrawingHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -164,15 +166,16 @@ export function Toolbar() {
   };
 
   const handleDrawing = () => {
-    const state = useStructureStore.getState();
-    const { nodes, edges, profiles, stockByProfile, kerf } = state;
+    const { nodes, edges, profiles, edgeProfile, stockByProfile, kerf, jointId } =
+      useStructureStore.getState();
     const input = structureToExportInput({
       nodes,
       edges,
       profiles,
-      edgeProfileId: (id) => state.getEdgeProfileId(id),
+      edgeProfile,
       stockByProfile,
       kerf,
+      jointId,
       units,
       projectName,
       dateStr: new Date().toLocaleDateString(),
@@ -208,7 +211,7 @@ export function Toolbar() {
           </div>
 
           <ToolbarMenu
-            label={PLANE_SHORT[workPlane]}
+            label={`${PLANE_SHORT[workPlane]} plane`}
             title="Work plane for node placement"
             items={PLANES.map((p) => ({
               label: WORK_PLANE_LABELS[p],
@@ -218,7 +221,7 @@ export function Toolbar() {
           />
 
           <ToolbarMenu
-            label={VIEW_SHORT[viewPreset]}
+            label={`${VIEW_SHORT[viewPreset]} view`}
             title="Camera view preset"
             items={VIEWS.map((v) => ({
               label: VIEW_SHORT[v],
@@ -307,6 +310,14 @@ export function Toolbar() {
             >
               Drawing
             </button>
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              aria-label="Help and shortcuts"
+              title="Help and shortcuts"
+            >
+              ?
+            </button>
           </div>
 
           <ToolbarMenu
@@ -344,6 +355,7 @@ export function Toolbar() {
         kind="structure"
       />
       <DrawingModal html={drawingHtml} onClose={() => setDrawingHtml(null)} />
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }

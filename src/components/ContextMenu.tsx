@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useStructureStore } from '../store/structureStore';
 import { getActiveEdgeIds } from '../core/selection';
 import { useRingActions } from './markingActions';
+import { LockIcon } from './LockIcon';
+import { scrollToCutPlan } from './cutPlanNav';
 import type { WorkPlane } from '../core/types';
 
 export type ContextMenuState = {
@@ -44,7 +46,6 @@ export function ContextMenu({
 
   const workPlane = useStructureStore((s) => s.workPlane);
   const setWorkPlane = useStructureStore((s) => s.setWorkPlane);
-  const optimize = useStructureStore((s) => s.optimize);
   const toggleLockSelection = useStructureStore((s) => s.toggleLockSelection);
   const edgeCount = useStructureStore((s) => s.edges.length);
   const selection = useStructureStore((s) => s.selection);
@@ -58,6 +59,11 @@ export function ContextMenu({
 
   useEffect(() => {
     if (!menu) return;
+    // Keyboard users land inside the menu; focus returns where it was on close.
+    const previous = document.activeElement as HTMLElement | null;
+    ref.current
+      ?.querySelector<HTMLButtonElement>('.marking-list button:not(:disabled)')
+      ?.focus();
     const close = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as HTMLElement)) onClose();
     };
@@ -69,6 +75,7 @@ export function ContextMenu({
     return () => {
       window.removeEventListener('mousedown', close);
       window.removeEventListener('keydown', esc);
+      previous?.focus?.();
     };
   }, [menu, onClose]);
 
@@ -84,7 +91,12 @@ export function ContextMenu({
   };
 
   return (
-    <div ref={ref} onContextMenu={(e) => e.preventDefault()}>
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label="Quick actions"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <span className="marking-center" style={{ left: cx, top: cy }} />
       {ring.map((item, i) => {
         const angle = (-90 + i * 45) * (Math.PI / 180);
@@ -111,7 +123,15 @@ export function ContextMenu({
           onClick={run(toggleLockSelection)}
           title="Locked parts cannot be moved, re-dimensioned or deleted"
         >
-          {anyUnlocked || !hasEdgeSelection ? '🔒 Lock part' : '🔓 Unlock part'}
+          {anyUnlocked || !hasEdgeSelection ? (
+            <>
+              <LockIcon /> Lock part
+            </>
+          ) : (
+            <>
+              <LockIcon open /> Unlock part
+            </>
+          )}
         </button>
         <div className="marking-seg">
           <span className="marking-seg-label">Plane</span>
@@ -142,8 +162,8 @@ export function ContextMenu({
         >
           Member dimension…
         </button>
-        <button type="button" disabled={edgeCount === 0} onClick={run(optimize)}>
-          Optimize cuts
+        <button type="button" disabled={edgeCount === 0} onClick={run(scrollToCutPlan)}>
+          Show cut plan
         </button>
         <div className="context-menu-sep" />
         <button type="button" onClick={run(onHelp)}>

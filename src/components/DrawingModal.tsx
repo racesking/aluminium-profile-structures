@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Modal } from './Modal';
 
 type Props = {
   /** The full print-sheet HTML document (from bomToPrintHtml), or null. */
@@ -8,8 +9,8 @@ type Props = {
 
 /**
  * In-app viewer for the technical drawing / parts list. Renders the print
- * sheet in a sandboxed-by-origin iframe (srcDoc) so nothing opens in a new
- * tab; "Print / Save PDF" prints just the sheet via the iframe's window.
+ * sheet in an iframe (srcDoc) so nothing opens in a new tab; "Print / Save
+ * PDF" prints just the sheet via the iframe's window.
  */
 export function DrawingModal({ html, onClose }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -24,26 +25,27 @@ export function DrawingModal({ html, onClose }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal drawing-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="drawing-modal-head">
-          <h2>Technical drawing &amp; parts list</h2>
-          <div className="drawing-modal-actions">
-            <button type="button" className="primary" onClick={handlePrint}>
-              Print / Save PDF
-            </button>
-            <button type="button" onClick={onClose}>
-              Close
-            </button>
-          </div>
+    <Modal
+      title="Technical drawing & parts list"
+      onClose={onClose}
+      className="drawing-modal"
+      headerActions={
+        <div className="drawing-modal-actions">
+          <button type="button" className="primary" onClick={handlePrint}>
+            Print / Save PDF
+          </button>
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
         </div>
-        <iframe
-          ref={frameRef}
-          className="drawing-frame"
-          srcDoc={html}
-          title="Technical drawing"
-        />
-      </div>
-    </div>
+      }
+    >
+      <iframe
+        ref={frameRef}
+        className="drawing-frame"
+        srcDoc={html}
+        title="Technical drawing sheet"
+      />
+    </Modal>
   );
 }

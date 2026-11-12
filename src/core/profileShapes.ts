@@ -26,6 +26,27 @@ export function profileShapeOf(p: { shape?: ProfileShape }): ProfileShape {
   return p.shape && isProfileShape(p.shape) ? p.shape : 'square';
 }
 
+/**
+ * Human section label for a profile, in mm: "40×40", "⌀40", "L40×40",
+ * "T40×40", "40×40 T-slot". Sections are always quoted in mm.
+ */
+export function sectionLabel(p: { sectionMm: number; shape?: ProfileShape }): string {
+  const s = Number(p.sectionMm.toFixed(1)).toString();
+  switch (profileShapeOf(p)) {
+    case 'round':
+      return `⌀${s} mm`;
+    case 'angle':
+      return `L${s}×${s} mm`;
+    case 'tee':
+      return `T${s}×${s} mm`;
+    case 'bosch':
+      return `${s}×${s} mm T-slot`;
+    case 'square':
+    default:
+      return `${s}×${s} mm`;
+  }
+}
+
 /** A closed polygon; the closing edge back to the first point is implicit. */
 export type Contour = [number, number][];
 

@@ -16,6 +16,7 @@ import { ContextMenu, type ContextMenuState } from './ContextMenu';
 import { flickSector, useRingActions } from './markingActions';
 import { HelpModal } from './HelpModal';
 import { MemberDimensionModal } from './MemberDimensionModal';
+import { BoxFrameDialog } from './BoxFrameDialog';
 import { ErrorBoundary, CanvasErrorFallback } from './ErrorBoundary';
 
 const VIEW_DIRECTIONS: Record<
@@ -142,6 +143,10 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
   const snapToGrid = useStructureStore((s) => s.snapToGrid);
   const gridCellSize = useStructureStore((s) => s.gridCellSize);
   const nodes = useStructureStore((s) => s.nodes);
+  const selectedEdgeIds = useStructureStore((s) => s.selectedEdgeIds);
+  const setToolMode = useStructureStore((s) => s.setToolMode);
+  const loadBoxFrame = useStructureStore((s) => s.loadBoxFrame);
+  const [boxOpen, setBoxOpen] = useState(false);
   const units = useSettingsStore((s) => s.units);
   const { span } = getStructureBounds(nodes);
 
@@ -303,6 +308,12 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
     ? ` · grid ${formatLength(gridCellSize, units)}`
     : ' · snap off';
 
+  const selectedCount = selectedEdgeIds.length;
+  const selectionHint =
+    selectedCount > 0
+      ? ` · ${selectedCount} member${selectedCount === 1 ? '' : 's'} selected`
+      : '';
+
   const modeLabel =
     toolMode === 'placeNode'
       ? `Place node — click (${planeHint})`
@@ -312,10 +323,31 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
           : 'Connect — click first node'
         : toolMode === 'box'
           ? 'Box select — drag → window · ← crossing · Shift adds'
-          : `Select — click member · Shift multi · click empty to clear${lockHint}${snapHint}`;
+          : `Select — click member · Shift multi · right-click for actions${selectionHint}${lockHint}${snapHint}`;
+
+  // Keyboard access to the marking menu: Shift+F10 or the Menu key opens it
+  // at the centre of the viewport (ignored while typing or a modal is open).
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMenuKey = e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10');
+      if (!isMenuKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (document.querySelector('.modal-overlay')) return;
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (!r) return;
+      e.preventDefault();
+      setContextMenu({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div
+      ref={wrapRef}
       className="viewport-wrap"
       onPointerDown={onPointerDown}
       onPointerUp={onFlickUp}
@@ -374,7 +406,31 @@ export function Viewport({ onFocusTranslate }: ViewportProps) {
           {flickToast.label}
         </div>
       )}
-      <div className="mode-badge">{modeLabel}</div>
+      {nodes.length === 0 && toolMode !== 'placeNode' && (
+        <div className="viewport-empty" role="note">
+          <p className="viewport-empty-title">Start your structure</p>
+          <p className="viewport-empty-body">
+            Begin from a box frame and edit it, or place nodes on the floor
+            plane and connect them into members.
+          </p>
+          <div className="viewport-empty-actions">
+            <button type="button" className="primary" onClick={() => setBoxOpen(true)}>
+              Box frame…
+            </button>
+            <button type="button" onClick={() => setToolMode('placeNode')}>
+              Place nodes (N)
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="mode-badge" aria-live="polite">
+        {modeLabel}
+      </div>
+      <BoxFrameDialog
+        open={boxOpen}
+        onClose={() => setBoxOpen(false)}
+        onApply={loadBoxFrame}
+      />
       <ContextMenu
         menu={contextMenu}
         onClose={() => setContextMenu(null)}

@@ -7,7 +7,8 @@ import type {
 import type { CutMember } from '../../core/joints';
 import type { ProfileDef } from '../../core/profiles';
 import { useSettingsStore } from '../../store/settingsStore';
-import { formatLength, formatLengthValue } from '../../core/units';
+import { formatLength } from '../../core/units';
+import { CutStrip } from '../CutStrip';
 import type { LengthUnit } from '../../core/units';
 
 type Props = {
@@ -18,43 +19,6 @@ type Props = {
   stockMode: 'buy' | 'inventory';
   buyLengthOf: (profileId: string) => number;
 };
-
-function CutStrip({
-  bar,
-  roleColors,
-  units,
-}: {
-  bar: BarAssignment;
-  roleColors: Map<string, string>;
-  units: LengthUnit;
-}) {
-  return (
-    <div className="cut-strip">
-      {bar.cuts.map((c, i) => {
-        const pct = (c.length / bar.stockLength) * 100;
-        return (
-          <div
-            key={i}
-            className="cut-seg"
-            style={{ width: `${pct}%`, background: roleColors.get(c.label ?? '') ?? '#888888' }}
-            title={`${c.label ?? 'Cut'} — ${formatLength(c.length, units)}`}
-          >
-            {pct > 8 ? formatLengthValue(c.length, units) : ''}
-          </div>
-        );
-      })}
-      {bar.waste > 0.5 && (
-        <div
-          className="cut-seg waste"
-          style={{ width: `${(bar.waste / bar.stockLength) * 100}%` }}
-          title={`Waste — ${formatLength(bar.waste, units)}`}
-        >
-          {(bar.waste / bar.stockLength) * 100 > 10 ? formatLengthValue(bar.waste, units) : ''}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ProfileBOMSection({
   group,
@@ -141,7 +105,11 @@ function ProfileBOMSection({
               </strong>
               <span>waste {formatLength(bar.waste, units)}</span>
             </div>
-            <CutStrip bar={bar} roleColors={roleColors} units={units} />
+            <CutStrip
+              bar={bar}
+              colorOf={(label) => roleColors.get(label ?? '') ?? '#888888'}
+              units={units}
+            />
           </div>
         ))}
 

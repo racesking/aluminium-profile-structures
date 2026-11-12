@@ -78,7 +78,7 @@ describe('structureToExportInput (Advanced builder)', () => {
       nodes,
       edges,
       profiles: [prof],
-      edgeProfileId: () => prof.id,
+      edgeProfile: {},
       stockByProfile: { [prof.id]: stock },
       kerf: 0,
       units: 'mm',
@@ -113,13 +113,13 @@ describe('structureToExportInput (Advanced builder)', () => {
     const p1: ProfileDef = { id: 'p1', name: '40×40', sectionMm: 40 };
     const p2: ProfileDef = { id: 'p2', name: '20×20', sectionMm: 20 };
     // Horizontals (1000 mm) on p1, verticals (500 mm) on p2.
-    const edgeProfileId = (id: string) => (id === 'e1' || id === 'e2' ? 'p1' : 'p2');
+    const edgeProfile = { e1: 'p1', e2: 'p1', e3: 'p2', e4: 'p2' };
 
     const input = structureToExportInput({
       nodes,
       edges,
       profiles: [p1, p2],
-      edgeProfileId,
+      edgeProfile,
       stockByProfile: {
         p1: [{ id: 's1', length: 6000, quantity: 4 }],
         p2: [{ id: 's2', length: 6000, quantity: 4 }],
