@@ -191,6 +191,8 @@ type StructureState = {
     edges: { id: string; fromId: string; toId: string }[];
     stock?: StockBar[];
     kerf?: number;
+    /** Joint type to carry over (Express hand-off keeps the user's choice). */
+    jointId?: string;
     profile?: { name: string; sectionLabel?: string; sectionSizeMm?: number };
   }) => void;
   optimize: () => void;
@@ -1080,7 +1082,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
     });
   },
 
-  importStructure: ({ nodes, edges, stock, kerf, profile }) => {
+  importStructure: ({ nodes, edges, stock, kerf, jointId, profile }) => {
     get().pushHistory();
     set((s) => {
       // Express hands off a single profile → one Advanced profile carrying it.
@@ -1107,6 +1109,7 @@ export const useStructureStore = create<StructureState>((set, get) => ({
         constraints: [],
         ...slice,
         kerf: kerf ?? s.kerf,
+        jointId: jointId ? getJoint(jointId).id : s.jointId,
         lockedEdgeIds: [],
         // Hand-off starts a fresh project; the next autosave creates it.
         projectId: null,

@@ -10,11 +10,27 @@ import {
   profileShapeOf,
   sectionLabel,
 } from '../core/profileShapes';
-import { JOINTS, getJoint } from '../core/joints';
+import { JOINTS } from '../core/joints';
 import type { StockBar } from '../core/types';
 import { CutStrip } from './CutStrip';
 import { useCutPlan } from './useCutPlan';
 import { CUT_PLAN_ID, scrollToCutPlan } from './cutPlanNav';
+
+/**
+ * What each joint does to Advanced cut lengths. Advanced cuts follow the 3D
+ * joint rules (core/jointVisuals), which differ from Express's per-member
+ * factors — so it gets its own, accurate wording.
+ */
+const ADVANCED_JOINT_HINT: Record<string, string> = {
+  blind:
+    'Internal connector. The larger profile runs through; members that butt into it are shortened by half its width.',
+  bracket:
+    'External angle bracket at right-angle corners. Butting members are shortened by half the through profile’s width.',
+  mitre:
+    'Where two members meet, both are cut at 45° to the outer corner.',
+  butt:
+    'Members butt against the through profile and are shortened by half its width (no connector).',
+};
 
 function ProfileStockBlock({
   profile,
@@ -122,6 +138,13 @@ export function StockPanel() {
   const selectedCount = useStructureStore((s) => s.getActiveEdgeIds().length);
 
   const plan = useCutPlan();
+  const nodes = useStructureStore((s) => s.nodes);
+  // Mitres only apply where exactly two members meet (core/jointVisuals).
+  const hasThreeWayNode =
+    jointId === 'mitre' &&
+    nodes.some(
+      (n) => edges.filter((e) => e.fromId === n.id || e.toId === n.id).length >= 3,
+    );
   const result = plan.multi;
   const ids = useId();
 
@@ -282,7 +305,9 @@ export function StockPanel() {
             </select>
           </div>
           <p className="hint hint-compact" style={{ marginTop: 0 }}>
-            {getJoint(jointId).short} Cut lengths below include it.
+            {ADVANCED_JOINT_HINT[jointId] ?? ''}
+            {hasThreeWayNode && ' Corners where three or more members meet are butted instead.'}{' '}
+            Cut lengths below include this.
           </p>
           <div className="field">
             <label htmlFor={`${ids}-kerf`}>Kerf / blade (mm)</label>

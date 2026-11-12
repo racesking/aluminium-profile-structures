@@ -7,6 +7,7 @@ import {
 } from './structureCuts';
 import { sectionLabel } from './profileShapes';
 import type { Node } from './types';
+import { createBoxFrame } from './boxFrame';
 import type { ProfileDef } from './profiles';
 
 /** Post up Y (500), rail out along X (400), sharing the origin. */
@@ -44,6 +45,15 @@ describe('memberCutLengths', () => {
     const cuts = memberCutLengths(nodes, edges, () => 40, 'mitre');
     expect(cuts.get('post')).toBe(520); // 500 + 40/2
     expect(cuts.get('rail')).toBe(420);
+  });
+
+  it('a box frame (three-way corners) cuts the same for mitre and butt', () => {
+    const { nodes, edges } = createBoxFrame(600, 400, 400);
+    const mitre = memberCutLengths(nodes, edges, () => 20, 'mitre');
+    const butt = memberCutLengths(nodes, edges, () => 20, 'butt');
+    expect([...mitre.entries()]).toEqual([...butt.entries()]);
+    // Through members keep full length; butting members lose 10 mm per end.
+    expect([...new Set(butt.values())].sort((a, b) => a - b)).toEqual([380, 390, 590, 600]);
   });
 
   it('a lone member keeps its centreline length', () => {

@@ -165,6 +165,7 @@ export function ExpressBuilder() {
       edges,
       stock: handoffStock,
       kerf,
+      jointId,
       profile: {
         name: dominantProfile.name,
         sectionLabel: `${dominantProfile.name} mm`,
