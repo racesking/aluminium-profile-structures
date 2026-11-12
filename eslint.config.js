@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Third-party agent tooling (impeccable skill + its working files) is not app code.
+  globalIgnores(['dist', '.claude/skills', '.impeccable']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
