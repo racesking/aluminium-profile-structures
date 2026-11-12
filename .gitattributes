@@ -9,3 +9,5 @@
 *.ico binary
 *.woff binary
 *.woff2 binary
+# impeccable POSIX launcher must keep LF endings or the design hook breaks on Windows
+.claude/skills/impeccable/scripts/impeccable text eol=lf
