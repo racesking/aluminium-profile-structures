@@ -43,6 +43,8 @@ Package name is `beam-calculator`; disk folder is `Beam Calculator`; product/Pag
 | `npm run test` | `vitest run` (Node env, `src/**/*.test.ts` only) |
 | `npm run preview` | Serve the production build locally (base `/`) |
 
+Versioning: `package.json` semver is injected at build time as `__APP_VERSION__` / `__APP_COMMIT__` (`vite.config.ts` `define`, typed in `src/env.d.ts`, read via `core/appInfo.ts`). Release steps and the changelog rule live in `PROJECT_MEMORY.md` → "How we work".
+
 Before pushing, run typecheck + lint + test + build (CI gates on all of them). There is **one pre-existing lint warning** in `StructureScene.tsx` (`useCallback` dep) — not from your change unless the count grows.
 
 **Strict react-hooks v6 lint rules to design around** (they reject common patterns as *errors*): no synchronous `setState` reachable from a `useEffect` body (fetch with a pure async fn + `.then(setState)` and a `cancelled` flag); no `Date.now()`/impure calls during render (compute timestamps when data loads); no mutating hook-returned objects like `useThree().scene` (do it in Canvas `onCreated` instead).

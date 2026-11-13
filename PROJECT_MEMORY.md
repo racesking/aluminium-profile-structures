@@ -45,10 +45,23 @@ If a change also alters architecture or invariants, update `CLAUDE.md` as well. 
 ## Next up
 
 Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Phases 0–5, T1–T18) and **Track B: product features** (Phases 6–11, T19–T35: catalog, hardware BOM, cost, cut sheets/labels, optimizer, pattern/mirror, orientation, panels, load checks, DXF/3D export). Track B starts after Checkpoint A; Phases 6–7 are proposed for the public launch. Current: Track A, Phase 0.
-- **T1 Persistent memory**: done 2026-11-13; verify in the next session.
-- **T2 Release workflow** (semver, changelog, version in Settings): next.
-- **T3 E2E smoke tests**: then this.
+- **T1 Persistent memory**: done.
+- **T2 Release workflow**: done (v0.9.0 tagged).
+- **T3 E2E smoke tests**: next.
+- **T8a Rebrand**: not blocked; can run alongside.
 - All 12 open questions answered 2026-11-13 (see Decisions and `tasks/plan.md`). New tasks: T8a rebrand, T12a move to Cloudflare Pages.
+
+## How we work (release workflow)
+
+- **Day to day:** commit to `main` and push (owner preference). CI (typecheck → lint → test → build) gates every deploy. Each commit updates this file.
+- **Version:** semver in `package.json`. The build stamps version + short commit hash into the app (`core/appInfo.ts`; shown in Settings, used as the error-report release from T4).
+- **Release:**
+  1. Move `CHANGELOG.md` "Unreleased" entries under a new `## [x.y.z] - date`.
+  2. Bump `package.json`.
+  3. Commit "Release vX.Y.Z".
+  4. `git tag vX.Y.Z && git push --tags`.
+  - patch = fixes, minor = features, major = breaking project-file or behaviour changes.
+- **Every user-visible change** adds a line under "Unreleased" in `CHANGELOG.md` (user wording), alongside the change-log line below.
 
 ## Decisions (append-only)
 
@@ -71,6 +84,7 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 | 2026-11-13 | English only at launch. Legal entity: **Razvan Cretu personally**. | User decision. |
 | 2026-11-13 | **Unify joint rules on Advanced's** (through-member trims) in both builders. | The 3D view must always match the cut list; one meaning per joint name. |
 | 2026-11-13 | Catalog scope: generic T-slot → Bosch Rexroth → steel tube/angle/flat → item + Misumi; factual datasheet values with attribution. Prices blank + optional marked estimates. Load checks in, as estimates. | User decisions. |
+| 2026-11-13 | Commits stay direct-to-`main`; releases are tagged semver with a Keep-a-Changelog CHANGELOG. | Owner preference for fast deploys; tags + changelog give traceability. |
 | 2026-11-13 | Launch scope = Track A + Track B Phases 6–7 (catalog, hardware BOM, weight, cost). | User decision. |
 
 ## Known issues and limitations
@@ -86,6 +100,7 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 
 ## Change log (newest first)
 
+- 2026-11-13 · (this commit) · v0.9.0: version + commit hash shown in Settings; CHANGELOG.md; release workflow documented (T2).
 - 2026-11-13 · (this commit) · Recorded answers to all 12 open questions; added T8a (rebrand) and T12a (Cloudflare Pages).
 - 2026-11-13 · (this commit) · Added Track B (product features, T19–T35) to the roadmap.
 - 2026-11-13 · (this commit) · Production-readiness plan (`tasks/plan.md`, `tasks/todo.md`); this memory file + `AGENTS.md` update rule.

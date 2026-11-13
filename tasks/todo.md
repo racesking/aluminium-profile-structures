@@ -17,11 +17,11 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 **Description:** Create the model-agnostic memory file that holds product decisions, current state and history, so work can continue in any session, model or tool. Make updating it a rule.
 
 **Acceptance criteria:**
-- [ ] `PROJECT_MEMORY.md` exists at the repo root and covers decisions, current state, roadmap pointer, known issues and a change log.
-- [ ] `CLAUDE.md` (top) and `AGENTS.md` (read by Codex, Cursor, Copilot and others) both require updating it with every change.
+- [x] `PROJECT_MEMORY.md` exists at the repo root and covers decisions, current state, roadmap pointer, known issues and a change log.
+- [x] `CLAUDE.md` (top) and `AGENTS.md` (read by Codex, Cursor, Copilot and others) both require updating it with every change.
 
 **Verification:**
-- [ ] A fresh session that reads only `AGENTS.md` can name the current phase, the next task and the 3 key product decisions.
+- [x] A fresh session that reads only `AGENTS.md` can name the current phase, the next task and the 3 key product decisions.
 
 **Dependencies:** None
 **Files:** `PROJECT_MEMORY.md`, `AGENTS.md`, `CLAUDE.md`
@@ -32,12 +32,12 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 **Description:** Give every deploy an identity, so users can report it, errors can be grouped by release, and changes are traceable.
 
 **Acceptance criteria:**
-- [ ] `package.json` version follows semver (start at `0.9.0`). `CHANGELOG.md` uses the Keep-a-Changelog format.
-- [ ] The build injects the version and short git SHA. They are shown in Settings ("Version 0.9.0 (abc1234)").
-- [ ] Workflow documented in PROJECT_MEMORY: feature branch → PR → CI green → merge → tag `vX.Y.Z` → deploy.
+- [x] `package.json` version follows semver (start at `0.9.0`). `CHANGELOG.md` uses the Keep-a-Changelog format.
+- [x] The build injects the version and short git SHA. They are shown in Settings ("Version 0.9.0 (abc1234)").
+- [x] Workflow documented in PROJECT_MEMORY. Adjusted 2026-11-13: commits go straight to `main` (owner preference; CI gates deploy); releases are tagged `vX.Y.Z`. A PR flow can be switched on later.
 
 **Verification:**
-- [ ] Build succeeds; Settings shows the version on the live preview.
+- [x] Build succeeds; Settings shows the version on the live preview.
 
 **Dependencies:** T1
 **Files:** `package.json`, `vite.config.ts`, `src/components/SettingsPage.tsx`, `CHANGELOG.md`, `src/vite-env.d.ts`

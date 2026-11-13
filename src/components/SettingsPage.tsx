@@ -2,6 +2,7 @@ import { useAppStore } from '../store/appStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { LENGTH_UNITS, toDisplay, fromDisplay, unitInputStep } from '../core/units';
 import '../styles/settings.css';
+import { versionLabel } from '../core/appInfo';
 
 const UNIT_LABELS: Record<string, string> = {
   mm: 'Millimetres',
@@ -109,6 +110,9 @@ export function SettingsPage() {
             quoted that way. These seed new profiles; existing designs are unchanged.
           </p>
         </div>
+        <p className="settings-version">
+          Version {versionLabel()} · mention it when reporting a problem.
+        </p>
       </div>
     </div>
   );
