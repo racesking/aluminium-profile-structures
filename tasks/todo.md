@@ -140,6 +140,21 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 
 ## Phase 2: Public presence
 
+## Task 8a: Brand name and identity
+
+**Description:** The user chose to rebrand before launch. Pick a short, brandable name and apply it everywhere, before the landing page content is written.
+
+**Acceptance criteria:**
+- [ ] 5–8 name proposals with domain availability (.com/.app/.io) and trademark quick-check; the user picks one.
+- [ ] Name applied to the app title, toolbar brand, wizard, README, `package.json` description, PROJECT_MEMORY and CLAUDE.md; logo/wordmark + favicon set.
+
+**Verification:**
+- [ ] `grep -rni "profile builder" src index.html README.md` returns only intentional mentions (e.g. the changelog).
+
+**Dependencies:** None (blocks T8 content and the domain choice)
+**Files:** `index.html`, `src/components/Toolbar.tsx`, `src/components/WizardPage.tsx`, `README.md`, `public/favicon.svg`, `PROJECT_MEMORY.md`
+**Scope:** S
+
 ## Task 8: Landing page + SEO basics
 
 **Description:** A fast, static landing page explains the tool and leads into the app. The app moves to `/app/`.
@@ -212,6 +227,22 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 
 **Dependencies:** None
 **Files:** `src/styles/theme.css`, `public/fonts/*` or the `@fontsource` packages
+**Scope:** S
+
+## Task 12a: Move hosting to Cloudflare Pages
+
+**Description:** The user chose Cloudflare Pages: deploys from `main` with preview URLs per branch/PR, real HTTP headers, and free Cloudflare Web Analytics.
+
+**Acceptance criteria:**
+- [ ] The Cloudflare Pages project builds from the repo (`npm run build`, output `dist`, base path `/`), with a preview deploy per PR. CI still gates the merge.
+- [ ] The old GitHub Pages URL redirects to (or announces) the new address; `REPO_BASE` in `vite.config.ts` is removed or made conditional; `deploy.yml` is retired.
+
+**Verification:**
+- [ ] The production URL serves the app; a PR shows a working preview link.
+- [ ] E2E runs against the preview URL.
+
+**Dependencies:** T3
+**Files:** `vite.config.ts`, `.github/workflows/deploy.yml`, `public/_headers`, `public/_redirects`, `PROJECT_MEMORY.md`, `CLAUDE.md`
 **Scope:** S
 
 ## Task 12: Content-Security-Policy and security headers
@@ -362,7 +393,7 @@ Track B starts after **Checkpoint A**. Tasks that depend on joints (T23, T29) wa
 
 **Acceptance criteria:**
 - [ ] `core/catalog.ts` types: `CatalogSeries` (system, slot size, hardware family) and `CatalogProfile` (id, name, shape, outline dims, area mm², mass kg/m, Ix/Iy mm⁴, material, E, yield, default €/m, source + date). Catalog JSON in `src/catalog/*.json` is validated by zod.
-- [ ] Initial content (open question 8): generic 20/30/40/45 T-slot (incl. 40×80 rectangular), Bosch Rexroth equivalents, steel SHS/RHS, angle, flat bar, round tube. Each entry cites its source.
+- [ ] Initial content, in this order: generic 20/30/40/45 T-slot (incl. 40×80 rectangular) → Bosch Rexroth → steel SHS/RHS, angle, flat bar, round tube → item + Misumi. Each entry cites its source datasheet and date (factual values only, with attribution).
 - [ ] `ProfileDef.catalogId?` added, persisted and migrated. Profiles without it behave exactly as today.
 
 **Verification:**
@@ -435,7 +466,7 @@ Track B starts after **Checkpoint A**. Tasks that depend on joints (T23, T29) wa
 
 **Acceptance criteria:**
 - [ ] `core/cost.ts`: profile cost = Σ bars bought × bar length × €/m (not cut length); hardware = qty × unit price; cuts = number of cuts × €/cut (optional). Pure and tested.
-- [ ] A per-project price table (defaults from the catalog, per open question 9) with currency setting; "estimate" badge when defaults are used.
+- [ ] A per-project price table, **blank by default**, with an optional "use estimates" toggle that fills catalog defaults marked as estimates; currency setting.
 - [ ] Total cost shown in the summary chip and the BOM, plus cost per profile.
 
 **Verification:**

@@ -48,7 +48,7 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 - **T1 Persistent memory**: done 2026-11-13; verify in the next session.
 - **T2 Release workflow** (semver, changelog, version in Settings): next.
 - **T3 E2E smoke tests**: then this.
-- Open questions blocking later phases (see the plan): hosting move to Cloudflare Pages, domain, brand name, languages, analytics vendor, joint semantics, legal entity, which catalogs, default prices, manufacturer data, load checks in scope, launch scope.
+- All 12 open questions answered 2026-11-13 (see Decisions and `tasks/plan.md`). New tasks: T8a rebrand, T12a move to Cloudflare Pages.
 
 ## Decisions (append-only)
 
@@ -65,7 +65,13 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 | 2026-11-13 | Accounts and cloud sync are planned, not built yet. Phase 5 lays the groundwork (repository abstraction + ADR). | User decision: keep shipping local-first, avoid migration pain later. |
 | 2026-11-13 | Telemetry: error reporting + cookieless analytics only. No PII, no cookies, no project data. | User decision; GDPR, and no consent banner needed. |
 | 2026-11-13 | `PROJECT_MEMORY.md` + the `AGENTS.md` rule are the cross-model project memory. | User request: don't depend on one model's context or memory. |
-| 2026-11-13 | Feature roadmap (Track B) built on a profile catalog with section properties, from which weight, cost, hardware and load checks derive. Hardware is derived from joints, never drawn. Load checks are labelled estimates. | Order-ready BOM + shop-floor outputs are what make it a fabricator's tool; a single catalog avoids four separate data sources. Proposed, awaiting approval. |
+| 2026-11-13 | Feature roadmap (Track B) built on a profile catalog with section properties, from which weight, cost, hardware and load checks derive. Hardware is derived from joints, never drawn. Load checks are labelled estimates. | Order-ready BOM + shop-floor outputs are what make it a fabricator's tool; a single catalog avoids four separate data sources. Approved 2026-11-13. |
+| 2026-11-13 | Hosting moves to **Cloudflare Pages**; analytics = **Cloudflare Web Analytics**. | Real security headers, preview deploys, free cookieless analytics. |
+| 2026-11-13 | **Rebrand before launch** (name TBD, task T8a). Domain decided after the name. | User decision. |
+| 2026-11-13 | English only at launch. Legal entity: **Razvan Cretu personally**. | User decision. |
+| 2026-11-13 | **Unify joint rules on Advanced's** (through-member trims) in both builders. | The 3D view must always match the cut list; one meaning per joint name. |
+| 2026-11-13 | Catalog scope: generic T-slot → Bosch Rexroth → steel tube/angle/flat → item + Misumi; factual datasheet values with attribution. Prices blank + optional marked estimates. Load checks in, as estimates. | User decisions. |
+| 2026-11-13 | Launch scope = Track A + Track B Phases 6–7 (catalog, hardware BOM, weight, cost). | User decision. |
 
 ## Known issues and limitations
 
@@ -80,6 +86,7 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 
 ## Change log (newest first)
 
+- 2026-11-13 · (this commit) · Recorded answers to all 12 open questions; added T8a (rebrand) and T12a (Cloudflare Pages).
 - 2026-11-13 · (this commit) · Added Track B (product features, T19–T35) to the roadmap.
 - 2026-11-13 · (this commit) · Production-readiness plan (`tasks/plan.md`, `tasks/todo.md`); this memory file + `AGENTS.md` update rule.
 - 2026-11-12 · 0064d93 · Advanced joint hints describe what Advanced actually cuts; Express hand-off keeps the joint type.

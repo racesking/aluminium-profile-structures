@@ -226,17 +226,17 @@ T34 DXF export · T35 3D export
 | Manufacturer trademarks or datasheets copied into the catalog | Medium | Store only factual dimensions/properties with attribution; no logos or copied drawings. Confirm per manufacturer (open question 10). |
 | Feature work dilutes production readiness | Medium | Track B starts after Checkpoint A; only Phases 6–7 are launch-scoped. |
 
-## Open questions (need your input)
+## Decisions on open questions (answered 2026-11-13)
 
-1. **Hosting:** move to Cloudflare Pages? It gives headers, PR previews and free analytics. Recommended: yes.
-2. **Domain:** keep `racesking.github.io/...` or buy a domain (e.g. `profilebuilder.app`)? This affects SEO, branding and the email in legal pages.
-3. **Product name/brand:** keep "Profile Builder — Aluminium Structures"?
-4. **Languages:** English only at launch, or English + Romanian?
-5. **Analytics vendor:** Cloudflare Web Analytics (free, needs Cloudflare) or Plausible (about €9/mo, EU-hosted)?
-6. **Joint semantics (T7):** should both builders use one set of rules? Recommended: Advanced's through-member rules everywhere, so the 3D view always matches the cut list.
-7. **Legal entity on the imprint:** you personally, or Skyline Engineering?
-8. **Catalogs first:** which systems do your users actually buy? Proposed: generic 20/30/40/45 T-slot + Bosch Rexroth + steel RHS/SHS. Alternatives: item, Misumi, local Romanian suppliers.
-9. **Prices:** ship default €/m and €/unit estimates, or start blank and let users enter their supplier prices? Recommended: blank, plus an "estimate" toggle with defaults clearly marked.
-10. **Manufacturer data:** OK to include named manufacturer series using factual datasheet values with attribution?
-11. **Load checks:** in scope at all? They add real value but also liability. Recommended: yes, as estimates behind a disclaimer.
-12. **Launch scope:** confirm Phases 6–7 (catalog + complete BOM + cost) are in for the public launch.
+1. **Hosting:** move to **Cloudflare Pages** (headers, previews, analytics). This adds task T12a: migrate hosting before T12.
+2. **Domain:** decide later. Build on the current address and switch before launch (Checkpoint E).
+3. **Name:** **rebrand before launch**. This adds task T8a: propose names, pick one, update the landing page, title, OG and README. It blocks T8 content.
+4. **Languages:** English only at launch. Strings stay simple to extract later.
+5. **Analytics:** **Cloudflare Web Analytics** (free, cookieless).
+6. **Joint rules:** **unify on Advanced's rules** in both builders (T7). Express "Square butt" will start shortening members.
+7. **Legal entity:** **Razvan Cretu, personally**.
+8. **Catalogs:** all four in scope: generic T-slot 20/30/40/45, Bosch Rexroth, steel tube/angle/flat bar, item + Misumi. Delivered in that order inside T19, generic first.
+9. **Prices:** blank by default + an optional "use estimates" toggle with clearly marked defaults.
+10. **Manufacturer data:** yes, factual datasheet values with attribution. No logos or copied drawings.
+11. **Load checks:** yes, as labelled estimates behind a disclaimer (T33).
+12. **Launch scope:** Track A + Track B Phases 6–7 (catalog, hardware BOM, weight, cost).
