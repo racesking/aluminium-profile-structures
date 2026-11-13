@@ -44,11 +44,11 @@ If a change also alters architecture or invariants, update `CLAUDE.md` as well. 
 
 ## Next up
 
-Roadmap: **Production readiness** (`tasks/plan.md`), Phase 0.
+Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Phases 0–5, T1–T18) and **Track B: product features** (Phases 6–11, T19–T35: catalog, hardware BOM, cost, cut sheets/labels, optimizer, pattern/mirror, orientation, panels, load checks, DXF/3D export). Track B starts after Checkpoint A; Phases 6–7 are proposed for the public launch. Current: Track A, Phase 0.
 - **T1 Persistent memory**: done 2026-11-13; verify in the next session.
 - **T2 Release workflow** (semver, changelog, version in Settings): next.
 - **T3 E2E smoke tests**: then this.
-- Open questions blocking later phases: hosting move to Cloudflare Pages, domain, brand name, languages, analytics vendor, joint semantics, legal entity (see the plan).
+- Open questions blocking later phases (see the plan): hosting move to Cloudflare Pages, domain, brand name, languages, analytics vendor, joint semantics, legal entity, which catalogs, default prices, manufacturer data, load checks in scope, launch scope.
 
 ## Decisions (append-only)
 
@@ -65,6 +65,7 @@ Roadmap: **Production readiness** (`tasks/plan.md`), Phase 0.
 | 2026-11-13 | Accounts and cloud sync are planned, not built yet. Phase 5 lays the groundwork (repository abstraction + ADR). | User decision: keep shipping local-first, avoid migration pain later. |
 | 2026-11-13 | Telemetry: error reporting + cookieless analytics only. No PII, no cookies, no project data. | User decision; GDPR, and no consent banner needed. |
 | 2026-11-13 | `PROJECT_MEMORY.md` + the `AGENTS.md` rule are the cross-model project memory. | User request: don't depend on one model's context or memory. |
+| 2026-11-13 | Feature roadmap (Track B) built on a profile catalog with section properties, from which weight, cost, hardware and load checks derive. Hardware is derived from joints, never drawn. Load checks are labelled estimates. | Order-ready BOM + shop-floor outputs are what make it a fabricator's tool; a single catalog avoids four separate data sources. Proposed, awaiting approval. |
 
 ## Known issues and limitations
 
@@ -79,6 +80,7 @@ Roadmap: **Production readiness** (`tasks/plan.md`), Phase 0.
 
 ## Change log (newest first)
 
+- 2026-11-13 · (this commit) · Added Track B (product features, T19–T35) to the roadmap.
 - 2026-11-13 · (this commit) · Production-readiness plan (`tasks/plan.md`, `tasks/todo.md`); this memory file + `AGENTS.md` update rule.
 - 2026-11-12 · 0064d93 · Advanced joint hints describe what Advanced actually cuts; Express hand-off keeps the joint type.
 - 2026-11-12 · 6109292 · Impeccable polish: joint-compensated live cut plan, part IDs (A1…), bar diagrams, accessible dialogs, keyboard access, 11px text floor, empty state, Y-up box frame.

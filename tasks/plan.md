@@ -110,6 +110,105 @@ Dependency hygiene (T13) is independent.
 ### Checkpoint F: complete
 - [ ] All acceptance criteria met. PROJECT_MEMORY up to date. Accounts plan ready for a separate build.
 
+---
+
+# Track B: Product features (technical scope)
+
+Track A (Phases 0–5) makes the app production-grade. Track B makes it **the tool a fabricator reaches for**. The promise is "design → a BOM and cut list I can order from and cut from." Today the app covers profiles and cut lengths. Real jobs also need:
+- what the profiles **are**: a catalog with weight, price and properties
+- **everything else to buy**: connectors, T-nuts, end caps, panels
+- **what it costs**
+- **instructions for the saw**: cut sheets, end angles, labels
+- confidence that it **holds**: basic load checks
+
+## Track B architecture decisions
+
+9. **The profile catalog is the foundation.**
+   - A versioned, bundled JSON catalog of series. Generic 20/30/40/45 T-slot, Bosch Rexroth, item, Misumi; plus steel and aluminium RHS/SHS, angle, flat and round tube.
+   - Each entry carries section properties: area, mass kg/m, Ix and Iy, slot size, default €/m.
+   - `ProfileDef` gains an optional `catalogId`; custom profiles keep working.
+   - Weight, cost, hardware and load checks all read from it, which is why it comes first.
+10. **Hardware is derived, not drawn.**
+    - Connectors come from the joint graph: `computeJointTreatments` already knows every joint and its through member. A pure `core/hardware.ts` maps (joint type × node topology × catalog series) to parts. Examples: a blind joint becomes an internal connector + screw; a bracket joint becomes an angle bracket + 2 T-nuts + 2 bolts; open ends get end caps.
+    - Users can override counts per line. Overrides are stored, never lost on recompute.
+11. **Cost is a pure function of BOM × price table.**
+    - Profiles are priced per metre of bar **bought**, not cut, so the optimizer's waste is costed.
+    - Hardware is per unit; there is an optional cost per cut. Prices are user-editable per project, with catalog defaults.
+12. **Shop-floor outputs are generated from the cut plan.**
+    - Per-bar cut sheets in saw order, with end operations per cut (mitre angle, tap thread, counterbore, connector hole from the joint), part-ID labels with QR codes, and an offcut list.
+    - Offcuts above a minimum length can go back into inventory.
+13. **Structural checks are estimates, clearly labelled.**
+    - Simple beam formulas (simply supported or cantilever; point or uniform load) using catalog Ix and E. Deflection and stress are compared to limits (L/200 default), giving warnings, not certification.
+    - Disclaimer in the UI and the terms (T9).
+14. **CAD interop is export-first.**
+    - DXF (2D drawing views) and glTF/STEP-lite (3D) are generated from the same geometry the 3D view uses. Import (DXF lines → members) comes later.
+15. **Modeling features extend the Advanced store's existing patterns.**
+    - Pattern, mirror, orientation and panels all go through `pushHistory` + node/edge ops, so undo, locks and the cut plan keep working with no special cases.
+
+## Track B ordering
+
+Track B starts after **Checkpoint A** (Track A Phase 0): every feature lands with E2E coverage. Joint-dependent features (T23 hardware, T29 end operations) wait for **T7** (joint semantics).
+
+**Recommended for public launch (Checkpoint E):** Phases 6–7 (catalog, complete BOM, cost). Then the product is clearly more than a cut calculator. Phases 8–11 follow launch.
+
+```
+Checkpoint A ─► T19 catalog model ─► T20 catalog UI ─┬─► T21 weight ─► T22 cost/quote
+                                                      ├─► T23 hardware (needs T7) ─► T22
+                                                      └─► T33 load checks (needs Ix)
+T22 ─► T24 quote export
+Cut plan ─► T25 cut sheets ─► T26 labels/QR ─► T27 offcuts→inventory
+T28 optimizer (independent, core-only)
+T29 end operations (needs T7, T25)
+T30 pattern/mirror · T31 member orientation · T32 panels/infill (needs T22 for pricing)
+T34 DXF export · T35 3D export
+```
+
+## Track B task list (details in `tasks/todo.md`)
+
+### Phase 6: Profile catalog (foundation)
+- [ ] T19: Catalog data model + bundled catalog (core, tested)
+- [ ] T20: Pick profiles from the catalog in both builders
+
+### Checkpoint G: catalog
+- [ ] A catalog profile in Advanced and Express shows its true section; old projects open unchanged.
+
+### Phase 7: Complete BOM and cost
+- [ ] T21: Weight per part, per profile and in total
+- [ ] T23: Hardware BOM derived from joints (connectors, T-nuts, bolts, end caps)
+- [ ] T22: Cost estimate: profiles bought, hardware, cuts
+- [ ] T24: Quote-ready BOM export (CSV + printed sheet with prices and weights)
+
+### Checkpoint H: order-ready BOM
+- [ ] For the box-frame example, the BOM lists profiles, hardware, weight and total cost. Hand-checked against a supplier price list.
+
+### Phase 8: Shop floor
+- [ ] T25: Per-bar cut sheets for the saw operator
+- [ ] T26: Part labels with QR codes
+- [ ] T27: Offcuts back into inventory + minimum reusable length
+
+### Checkpoint I: shop-ready
+- [ ] A user can cut a real job from the printed cut sheets and labels alone (pilot with one fabricator).
+
+### Phase 9: Optimizer and machining
+- [ ] T28: Cost-aware optimizer: mixed bar lengths, exact solve for small jobs
+- [ ] T29: End operations per cut: mitre angle, tapping, connector holes
+
+### Phase 10: Modeling power
+- [ ] T30: Rectangular/circular pattern + mirror
+- [ ] T31: Member orientation: roll angle and face alignment for T/L/Bosch
+- [ ] T32: Panels and infill (sheet, mesh, polycarbonate) with area in the BOM
+
+### Checkpoint J: modeling
+- [ ] A 3-shelf rack with mirrored sides, rotated L-profiles and back panels builds in under 10 minutes; BOM and cut plan are correct.
+
+### Phase 11: Engineering and interop
+- [ ] T33: Beam load checks (deflection and stress warnings)
+- [ ] T34: DXF export of drawing views
+- [ ] T35: 3D export (glTF; STEP if feasible)
+
+### Checkpoint K: Track B complete
+- [ ] All Track B acceptance criteria met. Golden tests cover hardware, cost and cut sheets. PROJECT_MEMORY updated.
+
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |
@@ -121,6 +220,11 @@ Dependency hygiene (T13) is independent.
 | Joint semantics differ between Express and Advanced (same names, different rules) and confuse users | Medium | T7 makes the decision and adds tests; until then the hints say exactly what each builder does. |
 | Losing local data: cleared browser storage, a new device | Medium | T5 backup-all export + reminder; later, cloud sync. |
 | Context or model changes lose project knowledge | Medium | PROJECT_MEMORY.md + AGENTS.md rule (T1). |
+| Wrong catalog data: section properties, weights or prices. Users order or check loads from it. | High | Each catalog entry cites its source datasheet and date. Unit tests check internal consistency (mass ≈ area × density). Prices are shown as editable estimates. |
+| Load checks read as certification | High | Estimate-only wording, a visible disclaimer, conservative defaults, simple formulas documented in Help; no "safe" green ticks. Terms (T9) cover it. |
+| Hardware mapping is wrong for a manufacturer's system | Medium | The mapping is data (per series) not code; per-line overrides; start with generic + 1 manufacturer and expand from user feedback. |
+| Manufacturer trademarks or datasheets copied into the catalog | Medium | Store only factual dimensions/properties with attribution; no logos or copied drawings. Confirm per manufacturer (open question 10). |
+| Feature work dilutes production readiness | Medium | Track B starts after Checkpoint A; only Phases 6–7 are launch-scoped. |
 
 ## Open questions (need your input)
 
@@ -131,3 +235,8 @@ Dependency hygiene (T13) is independent.
 5. **Analytics vendor:** Cloudflare Web Analytics (free, needs Cloudflare) or Plausible (about €9/mo, EU-hosted)?
 6. **Joint semantics (T7):** should both builders use one set of rules? Recommended: Advanced's through-member rules everywhere, so the 3D view always matches the cut list.
 7. **Legal entity on the imprint:** you personally, or Skyline Engineering?
+8. **Catalogs first:** which systems do your users actually buy? Proposed: generic 20/30/40/45 T-slot + Bosch Rexroth + steel RHS/SHS. Alternatives: item, Misumi, local Romanian suppliers.
+9. **Prices:** ship default €/m and €/unit estimates, or start blank and let users enter their supplier prices? Recommended: blank, plus an "estimate" toggle with defaults clearly marked.
+10. **Manufacturer data:** OK to include named manufacturer series using factual datasheet values with attribution?
+11. **Load checks:** in scope at all? They add real value but also liability. Recommended: yes, as estimates behind a disclaimer.
+12. **Launch scope:** confirm Phases 6–7 (catalog + complete BOM + cost) are in for the public launch.
