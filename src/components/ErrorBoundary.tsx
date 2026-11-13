@@ -1,10 +1,11 @@
 import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
+import { reportError } from '../sentry';
 
 type Props = {
   children: ReactNode;
   /** Custom fallback; receives a reset callback and the caught error. */
   fallback?: (reset: () => void, error: Error) => ReactNode;
-  /** Hook for an error-reporting service (e.g. Sentry) later on. */
+  /** Extra hook; every boundary already reports to Sentry (src/sentry.ts). */
   onError?: (error: Error, info: ErrorInfo) => void;
 };
 
@@ -23,6 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
+    reportError(error, info.componentStack ?? undefined);
     this.props.onError?.(error, info);
     console.error('ErrorBoundary caught an error:', error, info);
   }

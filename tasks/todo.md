@@ -73,13 +73,20 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 **Description:** Capture runtime errors in production with readable stacks and release tags, and without personal or project data.
 
 **Acceptance criteria:**
-- [ ] The Sentry browser SDK initialises only in production builds, with `sendDefaultPii: false`, `release` set to the app version and a low trace sample rate.
-- [ ] `ErrorBoundary.onError` and the global `unhandledrejection` handler report to Sentry. Project payloads and file contents are never attached; `beforeSend` scrubs anything that looks like JSON.
-- [ ] Source maps are uploaded in CI with an auth token from a GitHub secret, and are not deployed publicly.
+- [x] The Sentry browser SDK initialises only in production builds, with `sendDefaultPii: false` (v11: `dataCollection` all off), `release` set to the app version and a low trace sample rate (decision: tracing off).
+- [x] `ErrorBoundary.onError` and the global `unhandledrejection` handler report to Sentry. Project payloads and file contents are never attached; `beforeSend` scrubs anything that looks like JSON.
+- [x] Source maps are uploaded in CI with an auth token from a GitHub secret, and are not deployed publicly.
 
 **Verification:**
-- [ ] A test error triggered on the preview build appears in Sentry with the original file and line and the release tag.
-- [ ] The event payload contains no IP and no project data.
+- [ ] (waits on owner setup) A test error triggered on the preview build appears in Sentry with the original file and line and the release tag.
+- [x] The event payload contains no IP and no project data. (Verified with a local fake DSN: `infer_ip: never`, no user, JSON → [Filtered].)
+
+**Owner setup (once):**
+1. sentry.io → create an org in the **EU (Frankfurt) data region** → project, platform Browser JavaScript.
+2. Project settings → Security & Privacy: turn on **Prevent Storing of IP Addresses** and keep the data scrubber on.
+3. Copy the DSN. Create an org auth token (Settings → Auth Tokens; release + source-map upload scope).
+4. GitHub repo → Settings → Secrets and variables → Actions: variables `VITE_SENTRY_DSN`, `SENTRY_ORG` (org slug), `SENTRY_PROJECT` (project slug); secret `SENTRY_AUTH_TOKEN`.
+5. Push (or re-run Deploy), then open the live app with `?telemetry-test`: a "Telemetry test profile-builder@…" issue appears with the original file and line.
 
 **Dependencies:** T2
 **Files:** `src/main.tsx`, `src/core/telemetry.ts` (new), `src/components/ErrorBoundary.tsx`, `vite.config.ts`, `.github/workflows/deploy.yml`

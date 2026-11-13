@@ -38,8 +38,25 @@ jobs:
       - name: Test
         run: npm run test
 
+      # Error reporting (T4). All optional: with none set, the build has no
+      # reporting and no source maps. The token is a secret and lives only in
+      # this workflow (ci.yml runs on PRs and must never see it).
       - name: Build
         run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # Source maps go to Sentry only. If one is left in dist, refuse to deploy.
+      - name: Ensure no source maps are deployed
+        run: |
+          if find dist -name '*.map' | grep -q .; then
+            echo "::error::Source maps found in dist — they must not be published."
+            find dist -name '*.map'
+            exit 1
+          fi
 
       # Never ship a broken cut list: drive the real build before deploying it.
       - name: Install Playwright browser

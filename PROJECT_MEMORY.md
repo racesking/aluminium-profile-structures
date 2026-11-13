@@ -36,10 +36,10 @@ If a change also alters architecture or invariants, update `CLAUDE.md` as well. 
 - **Cut list:** Advanced cut lengths include joint compensation (`core/structureCuts.ts`), matching the 3D view. Parts are lettered A, B, … and members are A1, A2 everywhere: panel, 3D labels, cut plan, drawing.
 - **Persistence:** local only (localStorage + IndexedDB). Autosave and version history are Fusion-style; projects also save to and open from `.json`. No accounts, no backend.
 - **Quality:**
-  - 122 unit tests (`core/`) + 4 Playwright E2E tests against the production build (Express BOM + drawing, Advanced cut list + kerf, project file round-trip). E2E gates both CI and deploy.
+  - 131 unit tests (`core/`) + 4 Playwright E2E tests against the production build (Express BOM + drawing, Advanced cut list + kerf, project file round-trip). E2E gates both CI and deploy.
   - CI gates deploys on typecheck, lint, test and build.
   - The impeccable design skill and design-check hook are installed (project scope).
-- **Telemetry:** none yet. Planned: Sentry errors and cookieless analytics.
+- **Telemetry:** Sentry error reporting is built (T4) but **inert until the owner adds the Sentry DSN/org/project vars + auth-token secret in GitHub** (checklist in `tasks/todo.md` T4). Cookieless analytics still planned (T10).
 - **Last design review:** the Advanced builder critique scored 18/40 on 2026-11-12. All 5 priority issues were fixed the same day. Not re-scored yet.
 
 ## Next up
@@ -48,7 +48,8 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 - **T1 Persistent memory**: done.
 - **T2 Release workflow**: done (v0.9.0 tagged).
 - **T3 E2E smoke tests**: done. Checkpoint A reached; review before Phase 1.
-- **Next:** T4 error reporting (Sentry) → T5 data safety → T6 in-app dialogs → T7 golden tests + unify joint rules. **T8a Rebrand** can run alongside.
+- **T4 Error reporting**: code done; the live check ("a test error appears in Sentry") waits on the owner creating the Sentry project.
+- **Next:** T5 data safety → T6 in-app dialogs → T7 golden tests + unify joint rules. **T8a Rebrand** can run alongside.
 - All 12 open questions answered 2026-11-13 (see Decisions and `tasks/plan.md`). New tasks: T8a rebrand, T12a move to Cloudflare Pages.
 
 ## How we work (release workflow)
@@ -86,6 +87,7 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 | 2026-11-13 | Catalog scope: generic T-slot → Bosch Rexroth → steel tube/angle/flat → item + Misumi; factual datasheet values with attribution. Prices blank + optional marked estimates. Load checks in, as estimates. | User decisions. |
 | 2026-11-13 | Commits stay direct-to-`main`; releases are tagged semver with a Keep-a-Changelog CHANGELOG. | Owner preference for fast deploys; tags + changelog give traceability. |
 | 2026-11-13 | Launch scope = Track A + Track B Phases 6–7 (catalog, hardware BOM, weight, cost). | User decision. |
+| 2026-11-13 | Sentry: errors only (no tracing, no replay), SDK lazy-loaded, `dataCollection` all off (v11 replacement for `sendDefaultPii`; sends `infer_ip: never`), every event through `core/telemetry.scrubEvent` (JSON filtered, console breadcrumbs dropped, URL query dropped). Never reports from localhost (keeps E2E silent). Release = `profile-builder@<version>+<commit>`. Source maps uploaded then deleted; deploy fails if a `.map` is in `dist`. EU data region. | T4. Privacy first; tracing would cost quota and bundle for no fabrication value. |
 
 ## Known issues and limitations
 
@@ -96,9 +98,12 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 - Google Fonts is loaded from Google's CDN, which is a GDPR risk (T11).
 - `HelpModal` content is maintained by hand and can drift from the real keymap.
 - Lint: 1 pre-existing warning in `StructureScene.tsx`.
+- Follow-ups from T4: the privacy page (T9) must list Sentry as a processor; the CSP (T12) must allow the Sentry ingest host in `connect-src`.
+- Local E2E is flaky on a heavily loaded machine (timeouts, also on the pre-T4 code); CI is the gate.
 
 ## Change log (newest first)
 
+- 2026-11-13 · (this commit) · T4: Sentry error reporting (lazy, privacy-scrubbed, inert without DSN), all error boundaries report, source-map upload in deploy + no-maps guard. Verified envelopes against a local fake DSN: no IP, no user, project JSON filtered.
 - 2026-11-13 · (this commit) · T3: Playwright E2E suite (4 money-path tests) gating CI and deploy; a deliberate cut-length mutation turns it red. Fixed two unlabelled controls found by the tests (Express dimension fields, menu caret).
 - 2026-11-13 · (this commit) · v0.9.0: version + commit hash shown in Settings; CHANGELOG.md; release workflow documented (T2).
 - 2026-11-13 · (this commit) · Recorded answers to all 12 open questions; added T8a (rebrand) and T12a (Cloudflare Pages).

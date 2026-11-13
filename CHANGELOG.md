@@ -7,6 +7,9 @@ Settings matches these entries.
 
 ## [Unreleased]
 
+### Added
+- Anonymous crash reports (no personal or project data) help us fix errors faster.
+
 ### Fixed
 - Express dimension fields and toolbar menus now have proper names for screen readers.
 
