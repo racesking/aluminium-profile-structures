@@ -48,14 +48,14 @@ The plan, decisions and risks are in `tasks/plan.md`. Tick tasks here as they la
 **Description:** Playwright tests that drive the real app through the money paths, so UI regressions in the cut list are caught. UI is untested today.
 
 **Acceptance criteria:**
-- [ ] Express: choose shelving → change width → BOM total changes → open Drawing modal → it contains a parts table.
-- [ ] Advanced: create box frame 600×400×400 → the cut plan lists parts A–D with cut lengths 600/590/390/380 (blind, 20 mm) → change kerf → waste changes.
-- [ ] Project round-trip: save `.json` → reload → open → same member count.
-- [ ] Runs headless in `ci.yml` against `vite preview`; failures upload a trace.
+- [x] Express: choose shelving → change width → BOM total changes → open Drawing modal → it contains a parts table.
+- [x] Advanced: create box frame 600×400×400 → the cut plan lists parts A–D with cut lengths 600/590/390/380 (blind, 20 mm) → change kerf → waste changes.
+- [x] Project round-trip: save `.json` → reload → open → same member count.
+- [x] Runs headless in `ci.yml` against `vite preview`; failures upload a trace.
 
 **Verification:**
-- [ ] `npm run test:e2e` is green locally and in CI.
-- [ ] Deliberately breaking `memberCutLengths` turns CI red.
+- [x] `npm run test:e2e` is green locally and in CI.
+- [x] Deliberately breaking `memberCutLengths` turns CI red.
 
 **Dependencies:** T1
 **Files:** `playwright.config.ts`, `e2e/express.spec.ts`, `e2e/advanced.spec.ts`, `e2e/project-io.spec.ts`, `.github/workflows/ci.yml`, `package.json`

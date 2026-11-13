@@ -7,6 +7,12 @@ Settings matches these entries.
 
 ## [Unreleased]
 
+### Fixed
+- Express dimension fields and toolbar menus now have proper names for screen readers.
+
+### Internal
+- Automated end-to-end tests check the cut list, drawing and project files before every deploy.
+
 ## [0.9.0] - 2026-11-13
 
 First versioned release. It covers everything built so far.

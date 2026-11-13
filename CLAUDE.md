@@ -42,6 +42,8 @@ Package name is `beam-calculator`; disk folder is `Beam Calculator`; product/Pag
 | `npm run lint` | `eslint .` |
 | `npm run test` | `vitest run` (Node env, `src/**/*.test.ts` only) |
 | `npm run preview` | Serve the production build locally (base `/`) |
+| `npm run test:e2e` | Build, then Playwright E2E against `vite preview` at the Pages base path (`e2e/*.spec.ts`) |
+| `npm run test:e2e:only` | E2E without rebuilding (CI uses this after its own build) |
 
 Versioning: `package.json` semver is injected at build time as `__APP_VERSION__` / `__APP_COMMIT__` (`vite.config.ts` `define`, typed in `src/env.d.ts`, read via `core/appInfo.ts`). Release steps and the changelog rule live in `PROJECT_MEMORY.md` → "How we work".
 
@@ -195,12 +197,13 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 
 - `vitest run`, **Node environment, no jsdom** — only `core/` (framework-free logic) is unit-tested (`src/**/*.test.ts`). React components are not unit-tested. 120 tests across 13 files (geometry, units, cuttingStock, joints, jointVisuals, structureCuts, constraints, profileShapes, versionStore, projectFile, templates, drawing, bomExport).
 - When adding logic, prefer putting it in `core/` so it's testable, and add a `.test.ts`.
+- **E2E (Playwright, `e2e/`):** drives the real production build: Express BOM + drawing, Advanced box-frame parts/cut lengths + kerf, `.json` save → reopen in a fresh context. Runs in CI **and** gates deploy. Tests select by accessible role/name, so an unlabelled control breaks them, which is intentional. `project-io.spec.ts` deletes `showSaveFilePicker`/`showOpenFilePicker` to force the download/`<input type=file>` fallbacks. A new user-facing flow should get a spec. Mutation-checked: ignoring joint trims fails `advanced.spec.ts`.
 - **Live-preview testing gotcha:** eval-based `import('/src/store/...')` in the running preview returns a **different store instance** than the app's bundled module (HMR duplication) — store mutations via eval won't affect the rendered app. Drive features through the app DOM or do a full reload. Also `canvas.__r3f` isn't exposed in this r3f version, and screenshots often time out while the 3D canvas is mounted. Verify layout via computed-style / `getBoundingClientRect` measurements rather than screenshots.
 
 ## Deployment / CI
 
-- **`ci.yml`** (push to main + all PRs): checkout → node 22 → `npm ci` → typecheck → lint → test → build.
-- **`deploy.yml`** (push to main + manual): re-runs lint+test+build → uploads `dist` → GitHub Pages via OIDC. Both workflows fire on a normal merge, so main is checked twice.
+- **`ci.yml`** (push to main + all PRs): checkout → node 22 → `npm ci` → typecheck → lint → test → build → Playwright E2E (traces uploaded on failure).
+- **`deploy.yml`** (push to main + manual): re-runs lint+test+build+E2E → uploads `dist` → GitHub Pages via OIDC. Both workflows fire on a normal merge, so main is checked twice.
 - **Base path:** `vite.config.ts` sets `base = '/aluminium-profile-structures/'` for `build` only (dev/preview use `/`). If the repo/Pages path changes, update `REPO_BASE` or assets 404.
 - **GitHub Pages serves stale builds for ~1 min** after a push and needs a hard refresh — a "still broken" right after deploy is usually the old build.
 - Pages "Source" must be **GitHub Actions** (not a branch) or the deploy step fails.

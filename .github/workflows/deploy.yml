@@ -41,6 +41,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Never ship a broken cut list: drive the real build before deploying it.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e:only
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

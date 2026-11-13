@@ -80,7 +80,7 @@ function ToolbarMenu({
         title={title}
       >
         {label}
-        <span className="menu-caret">▾</span>
+        <span className="menu-caret" aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="toolbar-menu-list" role="menu">

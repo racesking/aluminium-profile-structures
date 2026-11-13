@@ -62,6 +62,7 @@ export function ParamSlider({ def, value, onChange }: Props) {
               const v = parseFloat(e.target.value);
               if (Number.isFinite(v)) onFieldChange(v);
             }}
+            aria-label={isLength ? `${def.label} (${units})` : def.label}
           />
           {isLength && <span className="unit">{units}</span>}
         </span>

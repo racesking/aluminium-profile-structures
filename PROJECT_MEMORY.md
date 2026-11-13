@@ -36,7 +36,7 @@ If a change also alters architecture or invariants, update `CLAUDE.md` as well. 
 - **Cut list:** Advanced cut lengths include joint compensation (`core/structureCuts.ts`), matching the 3D view. Parts are lettered A, B, … and members are A1, A2 everywhere: panel, 3D labels, cut plan, drawing.
 - **Persistence:** local only (localStorage + IndexedDB). Autosave and version history are Fusion-style; projects also save to and open from `.json`. No accounts, no backend.
 - **Quality:**
-  - 120 unit tests (`core/`); no E2E yet.
+  - 122 unit tests (`core/`) + 4 Playwright E2E tests against the production build (Express BOM + drawing, Advanced cut list + kerf, project file round-trip). E2E gates both CI and deploy.
   - CI gates deploys on typecheck, lint, test and build.
   - The impeccable design skill and design-check hook are installed (project scope).
 - **Telemetry:** none yet. Planned: Sentry errors and cookieless analytics.
@@ -47,8 +47,8 @@ If a change also alters architecture or invariants, update `CLAUDE.md` as well. 
 Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Phases 0–5, T1–T18) and **Track B: product features** (Phases 6–11, T19–T35: catalog, hardware BOM, cost, cut sheets/labels, optimizer, pattern/mirror, orientation, panels, load checks, DXF/3D export). Track B starts after Checkpoint A; Phases 6–7 are proposed for the public launch. Current: Track A, Phase 0.
 - **T1 Persistent memory**: done.
 - **T2 Release workflow**: done (v0.9.0 tagged).
-- **T3 E2E smoke tests**: next.
-- **T8a Rebrand**: not blocked; can run alongside.
+- **T3 E2E smoke tests**: done. Checkpoint A reached; review before Phase 1.
+- **Next:** T4 error reporting (Sentry) → T5 data safety → T6 in-app dialogs → T7 golden tests + unify joint rules. **T8a Rebrand** can run alongside.
 - All 12 open questions answered 2026-11-13 (see Decisions and `tasks/plan.md`). New tasks: T8a rebrand, T12a move to Cloudflare Pages.
 
 ## How we work (release workflow)
@@ -93,13 +93,13 @@ Roadmap (`tasks/plan.md`) has two tracks. **Track A: production readiness** (Pha
 - Projects saved before 2026-11-12 keep their stored kerf, often 0 mm. Users must set it to 3 mm.
 - Box-frame corners have 3 members, so Mitre cuts the same as Butt there (by design; the hint says so).
 - Express state and its project identity are shared across browser tabs through localStorage. Two tabs fight over them.
-- No E2E tests: UI regressions are caught only manually (T3).
 - Google Fonts is loaded from Google's CDN, which is a GDPR risk (T11).
 - `HelpModal` content is maintained by hand and can drift from the real keymap.
 - Lint: 1 pre-existing warning in `StructureScene.tsx`.
 
 ## Change log (newest first)
 
+- 2026-11-13 · (this commit) · T3: Playwright E2E suite (4 money-path tests) gating CI and deploy; a deliberate cut-length mutation turns it red. Fixed two unlabelled controls found by the tests (Express dimension fields, menu caret).
 - 2026-11-13 · (this commit) · v0.9.0: version + commit hash shown in Settings; CHANGELOG.md; release workflow documented (T2).
 - 2026-11-13 · (this commit) · Recorded answers to all 12 open questions; added T8a (rebrand) and T12a (Cloudflare Pages).
 - 2026-11-13 · (this commit) · Added Track B (product features, T19–T35) to the roadmap.
