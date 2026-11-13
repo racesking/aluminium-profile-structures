@@ -4,6 +4,8 @@ Engineering reference for **Profile Builder — Aluminium Structures**. Read thi
 
 > Public-facing overview lives in [README.md](README.md). This file is the internal map.
 
+> **RULE — persistent memory.** Read [PROJECT_MEMORY.md](PROJECT_MEMORY.md) at the start of every session. It holds decisions, current state, next steps and known issues. **Every change you make must update `PROJECT_MEMORY.md` in the same commit**: a change-log line, current state, decisions (append-only), roadmap ticks, known issues. Update this file too when architecture or invariants change. The active roadmap is `tasks/plan.md` + `tasks/todo.md`. The same rule is in `AGENTS.md` for non-Claude tools.
+
 ---
 
 ## What it is
@@ -83,7 +85,7 @@ These are the invariants that aren't obvious from one file. **Violating them cau
 
 3. **Graph is normalized by id.** `Edge` references `fromId`/`toId`; `EdgeConstraint` references edge ids; `edgeProfile` maps `edgeId → profileId`. Resolve ids against the node/edge arrays — nothing embeds objects.
 
-4. **`edgeId` is the stable identity; member labels are NOT.** `M{i+1}` labels in the UI and `optimize()` come from the **array index**, so deleting/reordering edges renumbers everything. Anything persistent must key on `edgeId`.
+4. **`edgeId` is the stable identity; member labels are NOT.** Part labels (A1, B2 … from `core/structureCuts.assignParts`) depend on profile order and cut length, so editing a length or profile can re-letter members. Anything persistent must key on `edgeId`.
 
 5. **Two unrelated "Profile" types** — don't mix them:
    - `core/types.ts` `Profile` = display metadata `{ name, sectionLabel?, sectionSizeMm? }` (legacy v1 / Express→Advanced hand-off).
@@ -176,7 +178,7 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 - **Shared UI pieces:** `Modal.tsx` (dialog role, labelled by title, focus in/trapped/returned, Escape) — every dialog uses it; `CommitNumberInput.tsx` (commits on Enter/blur, Esc reverts — used for member length); `CutStrip.tsx` (to-scale bar diagram, shared with Express BOM; styles live in theme.css); `LockIcon.tsx` (SVG, replaces emoji); `useCutPlan.ts`.
 - **3D scene:** `StructureScene` (composes the group + invisible 400³ placement surface, active only in placeNode mode) → `StructureLines` (members as **ExtrudeGeometry** of the profile's real cross-section — stable orientation frame, metallic material, joint trims/extensions from `jointVisuals`, mitre clipping planes, bracket meshes; click = `setEdgeSelection(id, shift, alt)`), `Nodes` (spheres; drag/connect), `DimensionLabels` (HTML labels; culled to selection-only when >8 edges), `WorkPlaneVisual` (faint plane, hidden in free mode). The Canvas `onCreated` sets `gl.localClippingEnabled = true` (mitres) and attaches a PMREM `RoomEnvironment` map (no network) for metal reflections.
 - **`HistoryPanel.tsx`** — version-history modal shared by both builders (`kind` prop). Lists autosaves/checkpoints with restore, rename, save-version. Times are computed at load, not render (react-hooks purity rules — see below).
-- **Modals/chrome:** `ContextMenu` — a Fusion-style **marking menu**: 8 radial quick actions around the cursor (selection-aware; picks close it; ring order lives in `markingActions.ts` — shared with the flick gesture, keep them in sync by construction) + a linear list with **Lock part** (pins members: move/translate/re-dimension/delete all refuse locked members and their endpoints; grey render + 🔒 in the member list; `lockedEdgeIds` persisted as `lockedEdges`), work-plane segment, Translate/Member-dimension/Optimize/Help. **Flick gestures** in `Viewport`: right-press + drag ≥30px toward a sector runs that ring action without opening the menu (suppresses the following `contextmenu`). Mouse buttons are Fusion-style: left orbit, middle pan, right = menu/flick. Also `MemberDimensionModal`, `BoxFrameDialog` (state persists across open/close), `HelpModal` (⚠ maintained separately from the real key handler — they can drift), `PanelResizer` (writes raw px; store clamps).
+- **Modals/chrome:** `ContextMenu` — a Fusion-style **marking menu**: 8 radial quick actions around the cursor (selection-aware; picks close it; ring order lives in `markingActions.ts` — shared with the flick gesture, keep them in sync by construction) + a linear list with **Lock part** (pins members: move/translate/re-dimension/delete all refuse locked members and their endpoints; grey render + SVG lock icon in the member list; `lockedEdgeIds` persisted as `lockedEdges`), work-plane segment, Translate/Member-dimension/Show cut plan/Help. Shift+F10 or the Menu key opens it from the keyboard. **Flick gestures** in `Viewport`: right-press + drag ≥30px toward a sector runs that ring action without opening the menu (suppresses the following `contextmenu`). Mouse buttons are Fusion-style: left orbit, middle pan, right = menu/flick. Also `MemberDimensionModal`, `BoxFrameDialog` (state persists across open/close), `HelpModal` (⚠ maintained separately from the real key handler — they can drift), `PanelResizer` (writes raw px; store clamps).
 
 ### Shell
 - **`main.tsx`** — `createRoot('root')` → `StrictMode > ErrorBoundary > App`. Loads `theme.css` (only global stylesheet).
@@ -189,7 +191,7 @@ All four data stores persist to `localStorage` via a module-level `subscribe`, v
 
 ## Testing
 
-- `vitest run`, **Node environment, no jsdom** — only `core/` (framework-free logic) is unit-tested (`src/**/*.test.ts`). React components are not unit-tested. 119 tests across 13 files (geometry, units, cuttingStock, joints, jointVisuals, structureCuts, constraints, profileShapes, versionStore, projectFile, templates, drawing, bomExport).
+- `vitest run`, **Node environment, no jsdom** — only `core/` (framework-free logic) is unit-tested (`src/**/*.test.ts`). React components are not unit-tested. 120 tests across 13 files (geometry, units, cuttingStock, joints, jointVisuals, structureCuts, constraints, profileShapes, versionStore, projectFile, templates, drawing, bomExport).
 - When adding logic, prefer putting it in `core/` so it's testable, and add a `.test.ts`.
 - **Live-preview testing gotcha:** eval-based `import('/src/store/...')` in the running preview returns a **different store instance** than the app's bundled module (HMR duplication) — store mutations via eval won't affect the rendered app. Drive features through the app DOM or do a full reload. Also `canvas.__r3f` isn't exposed in this r3f version, and screenshots often time out while the 3D canvas is mounted. Verify layout via computed-style / `getBoundingClientRect` measurements rather than screenshots.
 
